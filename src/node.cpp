@@ -128,20 +128,22 @@ int main(int argc, char** argv)
   	//driveKeyboard(cmd_vel_pub_);
 		ros::spinOnce();
 	
-	//Extracción de características.
+	//1. Extracción de características.
 	//Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
 	//un detector y un descriptor de características. Habrá que experimentar con las opciones 
 	//disponibles para determinar cuál es el más adecuado (por tiempo de ejecución y eficacia). 
     detect_keypoints(visu_pc, 0.005f, 6, 4, 0.005f);
 
-	//Encontrar emparejamientos.
+	//2. Encontrar emparejamientos.
 	//Usaremos el método que proporciona PCL para encontrar las correspondencias. 
 	//El resultado de este paso es un con-junto de emparejamiento. 
 
-    //Es posible que haya muchos malos emparejamientos.
-    //En este paso tenemos que determinar la mejor transformación que explica los 
+    //3. Determinar la mejor transformación que explica los emparejamientos.
+    //Es posible que haya muchos malos emparejamientos, por ello en este paso 
+    //tenemos que determinar la mejor transformación que explica los 
     //emparejamientos encontrados. Para ello, usaremos el algoritmo RANSAC.
 
+	//4. Aplicar filtro de reducción VoxelGrid + Construcción del mapa.
 	//Por último, hay que construir el mapa. Como cada toma de la Kinect tiene 
 	//aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas 
 	//tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos. 
