@@ -1,3 +1,9 @@
+// NARF KeyPoints
+// http://pointclouds.org/documentation/tutorials/narf_keypoint_extraction.php#narf-keypoint-extraction
+// Importante
+// http://www.jeffdelmerico.com/wp-content/uploads/2014/03/pcl_tutorial.pdf
+
+
 //transform pointclouds
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
@@ -111,6 +117,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
 	cout << "Puntos tras VGrid.Filter: " << cloud_filtered->size() << endl;
 
 	visu_pc = cloud_filtered;
+
+  // Detectamos los keypoints 
+  detect_keypoints(visu_pc, 0.005f, 6, 4, 0.005f);
 }
 
 int main(int argc, char** argv)
@@ -119,13 +128,13 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
-  //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
+  ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
 
   while(ros::ok())
   {
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
-  	//driveKeyboard(cmd_vel_pub_);
+  	driveKeyboard(cmd_vel_pub_);
 		ros::spinOnce();
 	
 	//1. Extracción de características.
@@ -137,8 +146,8 @@ int main(int argc, char** argv)
 
 	//2. Encontrar emparejamientos.
 	//Usaremos el método que proporciona PCL para encontrar las correspondencias. 
-	//El resultado de este paso es un conjunto de emparejamiento. 
-
+	//El resultado de este paso es un conjunto de emparejamiento.
+	
 
     //3. Determinar la mejor transformación que explica los emparejamientos.
     //Es posible que haya muchos malos emparejamientos, por ello en este paso 
