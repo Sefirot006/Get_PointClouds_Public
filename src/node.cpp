@@ -138,17 +138,19 @@ int main(int argc, char** argv)
 	//Usaremos el método que proporciona PCL para encontrar las correspondencias. 
 	//El resultado de este paso es un con-junto de emparejamiento. 
 
+
     //3. Determinar la mejor transformación que explica los emparejamientos.
     //Es posible que haya muchos malos emparejamientos, por ello en este paso 
     //tenemos que determinar la mejor transformación que explica los 
     //emparejamientos encontrados. Para ello, usaremos el algoritmo RANSAC.
+    
 
 	//4. Aplicar filtro de reducción VoxelGrid + Construcción del mapa.
 	//Por último, hay que construir el mapa. Como cada toma de la Kinect tiene 
 	//aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas 
 	//tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos. 
 	//Para ellos, podemos usar el filtro de reducción VoxelGrid, disponible en PCL. 
-
+    
 
   }
 }
