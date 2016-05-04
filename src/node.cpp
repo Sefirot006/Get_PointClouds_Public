@@ -83,6 +83,8 @@ void detect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &points,float min_s
   std::cout << "No of SIFT points in the result are " << result.points.size () << std::endl;
 }
 
+
+
 void simpleVis ()
 {
   	pcl::visualization::CloudViewer viewer ("Simple Cloud Viewer");
@@ -106,7 +108,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
 	vGrid.setLeafSize (0.05f, 0.05f, 0.05f);
 	vGrid.filter (*cloud_filtered);
 
-	cout << "Puntos tras VG: " << cloud_filtered->size() << endl;
+	cout << "Puntos tras VGrid.Filter: " << cloud_filtered->size() << endl;
 
 	visu_pc = cloud_filtered;
 }
@@ -125,7 +127,26 @@ int main(int argc, char** argv)
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
   	//driveKeyboard(cmd_vel_pub_);
 		ros::spinOnce();
+	
+	//Extracción de características.
+	//Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
+	//un detector y un descriptor de características. Habrá que experimentar con las opciones 
+	//disponibles para determinar cuál es el más adecuado (por tiempo de ejecución y eficacia). 
     detect_keypoints(visu_pc, 0.005f, 6, 4, 0.005f);
-  }
 
+	//Encontrar emparejamientos.
+	//Usaremos el método que proporciona PCL para encontrar las correspondencias. 
+	//El resultado de este paso es un con-junto de emparejamiento. 
+
+    //Es posible que haya muchos malos emparejamientos.
+    //En este paso tenemos que determinar la mejor transformación que explica los 
+    //emparejamientos encontrados. Para ello, usaremos el algoritmo RANSAC.
+
+	//Por último, hay que construir el mapa. Como cada toma de la Kinect tiene 
+	//aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas 
+	//tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos. 
+	//Para ellos, podemos usar el filtro de reducción Vo-xelGrid, disponible en PCL. 
+
+
+  }
 }
