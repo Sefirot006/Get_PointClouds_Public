@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 	//Por último, hay que construir el mapa. Como cada toma de la Kinect tiene 
 	//aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas 
 	//tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos. 
-	//Para ellos, podemos usar el filtro de reducción Vo-xelGrid, disponible en PCL. 
+	//Para ellos, podemos usar el filtro de reducción VoxelGrid, disponible en PCL. 
 
 
   }
