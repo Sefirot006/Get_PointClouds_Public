@@ -141,7 +141,6 @@ void PFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
   // Pero solo computa las caracteristicas de los keypoints
   pfh_est.setInputCloud(keypoints_xyzrgb);
 
-
   cout << "a punto de computar" << endl;
   // Computa las caracteristicas
   pfh_est.compute(*result);
@@ -241,6 +240,30 @@ int main(int argc, char** argv)
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
   	//driveKeyboard(cmd_vel_pub_);
 		ros::spinOnce();
-  }
+	
+	//1. Extracción de características.
+	//Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
+	//un detector y un descriptor de características. Habrá que experimentar con las opciones 
+	//disponibles para determinar cuál es el más adecuado (por tiempo de ejecución y eficacia). 
+    //feature_detector(visu_pc, 0.005f, 6, 4, 0.005f);
 
+	//2. Encontrar emparejamientos.
+	//Usaremos el método que proporciona PCL para encontrar las correspondencias. 
+	//El resultado de este paso es un conjunto de emparejamiento.
+	
+
+    //3. Determinar la mejor transformación que explica los emparejamientos.
+    //Es posible que haya muchos malos emparejamientos, por ello en este paso 
+    //tenemos que determinar la mejor transformación que explica los 
+    //emparejamientos encontrados. Para ello, usaremos el algoritmo RANSAC.
+
+
+	//4. Aplicar filtro de reducción VoxelGrid + Construcción del mapa.
+	//Por último, hay que construir el mapa. Como cada toma de la Kinect tiene 
+	//aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas 
+	//tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos. 
+	//Para ellos, podemos usar el filtro de reducción VoxelGrid, disponible en PCL. 
+
+
+  }
 }
