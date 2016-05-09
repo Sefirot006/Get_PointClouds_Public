@@ -22,7 +22,20 @@
 #include <pcl/features/fpfh.h>
 #include <pcl/features/fpfh_omp.h>
 #include <pcl/features/pfhrgb.h>
-
+#include <pcl/registration/correspondence_estimation.h>
+#include <pcl/registration/correspondence_rejection_distance.h>
+#include <pcl/registration/correspondence_rejection_median_distance.h>
+#include <pcl/registration/correspondence_rejection_surface_normal.h>
+#include <pcl/registration/correspondence_rejection.h>
+#include <pcl/registration/correspondence_rejection_one_to_one.h>
+#include <pcl/registration/correspondence_rejection_sample_consensus.h>
+#include <pcl/registration/correspondence_rejection_trimmed.h>
+#include <pcl/registration/correspondence_rejection_var_trimmed.h>
+#include <pcl/registration/transformation_estimation_lm.h>
+#include <pcl/registration/transformation_estimation_svd.h>
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/registration/icp.h>
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -192,19 +205,30 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     vGrid.setLeafSize (0.05f, 0.05f, 0.05f);
     vGrid.filter (*cloud_filtered_1);
     cout << "Puntos tras VG_1: " << cloud_filtered_1->size() << endl;
+    
+    std::vector<int> indices;
+    cloud_filtered_1->is_dense = false;
+    removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered_1, *cloud_filtered_1, indices);
+    cout << "Quitamos los NAN y quedan: " << cloud_filtered_1->size() << endl;
     cloud_1 = cloud_filtered_1;
 
     vGrid.setInputCloud (cloud_2);
     vGrid.filter (*cloud_filtered_2);
     cout << "Puntos tras VG_2: " << cloud_filtered_2->size() << endl;
+
+    std::vector<int> indices_2;
+    cloud_filtered_2->is_dense = false;
+    removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered_2, *cloud_filtered_2, indices_2);
+    cout << "Quitamos los NAN y quedan: " << cloud_filtered_2->size() << endl;
+
     cloud_2 = cloud_filtered_2;  
     
     pcl::PointCloud<pcl::Normal>::Ptr normals_1 (new pcl::PointCloud<pcl::Normal>);
     pcl::PointCloud<pcl::Normal>::Ptr normals_2 (new pcl::PointCloud<pcl::Normal>);
     const float normal_radius = 0.03;
 
-    compute_surface_normals(cloud_filtered_1, normal_radius, normals_1);  
-    compute_surface_normals(cloud_filtered_2, normal_radius, normals_2); 
+    compute_surface_normals(cloud_1, normal_radius, normals_1);  
+    compute_surface_normals(cloud_2, normal_radius, normals_2); 
 
     // Detectamos los keypoints 
     //cout << "antes de entrar en la deteccion de los keypoints" << endl;
@@ -214,14 +238,61 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     std::cout << "No of SIFT points in the keypoints_1 are " << pcKeyPoints_1->points.size () << std::endl;
     std::cout << "No of SIFT points in the keypoints_2 are " << pcKeyPoints_2->points.size () << std::endl;
     //cout << "paso la deteccion" << endl;
+    
     if(pcKeyPoints_1->size() > 10 && pcKeyPoints_2->size() > 10){
       cout << "paso por el if" << endl;
       // features
-      PFH(cloud_filtered_1, normals_1, pcKeyPoints_1, *cloudDescriptors_1, 0.05f);
-      PFH(cloud_filtered_2, normals_2, pcKeyPoints_2, *cloudDescriptors_2, 0.05f);
+      PFH(cloud_1, normals_1, pcKeyPoints_1, *cloudDescriptors_1, 0.05f);
+      PFH(cloud_2, normals_2, pcKeyPoints_2, *cloudDescriptors_2, 0.05f);
 
       std::cout << "No of PFH points in the descriptors_1 are " << cloudDescriptors_1->points.size () << std::endl;
       std::cout << "No of PFH points in the descriptors_2 are " << cloudDescriptors_2->points.size () << std::endl;
+
+      // Y esto creo que peta por lo de PFHSignature125, en el ejemplo usa pointxyz
+      // Podria probar el de harris a ver si es mejor, aun no lo he mirado
+      // enlace: http://robotica.unileon.es/mediawiki/index.php/PCL/OpenNI_tutorial_3:_Cloud_processing_%28advanced%29#Iterative_Closest_Point_.28ICP.29
+
+      IterativeClosestPoint<PFHSignature125,PFHSignature125> registration;
+      registration.setInputSource(cloudDescriptors_2);
+      registration.setInputTarget(cloudDescriptors_1);
+
+      registration.align(*cloudDescriptors_1);
+      if(registration.hasConverged()){
+        std::cout << "ICP converged." << std::endl
+          << "The score is " << registration.getFitnessScore() << std::endl;
+          std::cout << "Transformation matrix:" << std::endl;
+          std::cout << registration.getFinalTransformation() << std::endl;
+      }
+      else std::cout << "ICP did not converge." << std::endl;
+
+      // Me peta por el FLANN creo
+      /**
+      // CorrespondenceRejactorSampleConsensus
+      boost::shared_ptr<Correspondences> correspondences (new Correspondences);
+      registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
+      corr_est.setInputSource(cloudDescriptors_2);
+      corr_est.setInputTarget(cloudDescriptors_1);
+
+      cout << "antes de determinar las correspondencias" << endl;      
+
+      corr_est.determineCorrespondences (*correspondences);
+
+      cout << "ya se han determinado las correspondencias" << endl;
+
+      boost::shared_ptr<Correspondences> correspondences_result_rej_sac (new Correspondences);
+      registration::CorrespondenceRejectorSampleConsensus<PointXYZRGB> corr_rej_sac;
+      corr_rej_sac.setInputSource(cloud_2);
+      corr_rej_sac.setInputTarget(cloud_1);
+      // ni zorra de que hace esto
+      corr_rej_sac.setInlierThreshold(0.1);
+      corr_rej_sac.setMaximumIterations(1000);
+      corr_rej_sac.setInputCorrespondences(correspondences);
+      corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
+
+      Eigen::Matrix4f transform_res_from_SAC = corr_rej_sac.getBestTransformation();
+
+      cout << "Despues de todo el lio nos quedamos con: " << correspondences_result_rej_sac->size() << " correspondencias" << endl;
+      */
     } 
   }
 }
