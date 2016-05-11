@@ -314,8 +314,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     compute_surface_normals(pcKeyPoints_1XYZ, normal_radius, normals_1);  
     compute_surface_normals(pcKeyPoints_2XYZ, normal_radius, normals_2); 
 
-    std::cout << "No of SIFT points in the keypoints_1 are " << pcKeyPoints_1->points.size () << std::endl;
-    std::cout << "No of SIFT points in the keypoints_2 are " << pcKeyPoints_2->points.size () << std::endl;
+    //std::cout << "No of SIFT points in the keypoints_1 are " << pcKeyPoints_1->points.size () << std::endl;
+    //std::cout << "No of SIFT points in the keypoints_2 are " << pcKeyPoints_2->points.size () << std::endl;
     //cout << "paso la deteccion" << endl;
     
     if((pcKeyPoints_1->size() > 10 && pcKeyPoints_2->size() > 10) || (pcKeyPoints_1XYZ->size() > 10 && pcKeyPoints_2XYZ->size() > 10)){
