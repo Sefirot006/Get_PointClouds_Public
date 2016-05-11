@@ -3,40 +3,35 @@
 // Importante
 // http://www.jeffdelmerico.com/wp-content/uploads/2014/03/pcl_tutorial.pdf
 
-
-//transform pointclouds
-#include <ros/ros.h>
-#include <pcl_ros/point_cloud.h>
-#include <pcl/point_types.h>
 #include <boost/foreach.hpp>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/filters/voxel_grid.h>
 #include <geometry_msgs/Twist.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
+#include <pcl-1.7/pcl/keypoints/harris_3d.h>
 #include <pcl/common/io.h>
-#include <pcl/keypoints/sift_keypoint.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/features/pfh.h>
 #include <pcl/features/fpfh.h>
 #include <pcl/features/fpfh_omp.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/features/pfh.h>
 #include <pcl/features/pfhrgb.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/keypoints/sift_keypoint.h>
+#include <pcl/point_types.h>
 #include <pcl/registration/correspondence_estimation.h>
+#include <pcl/registration/correspondence_rejection.h>
 #include <pcl/registration/correspondence_rejection_distance.h>
 #include <pcl/registration/correspondence_rejection_median_distance.h>
-#include <pcl/registration/correspondence_rejection_surface_normal.h>
-#include <pcl/registration/correspondence_rejection.h>
 #include <pcl/registration/correspondence_rejection_one_to_one.h>
 #include <pcl/registration/correspondence_rejection_sample_consensus.h>
+#include <pcl/registration/correspondence_rejection_surface_normal.h>
 #include <pcl/registration/correspondence_rejection_trimmed.h>
 #include <pcl/registration/correspondence_rejection_var_trimmed.h>
+#include <pcl/registration/icp.h>
 #include <pcl/registration/transformation_estimation_lm.h>
 #include <pcl/registration/transformation_estimation_svd.h>
-#include <pcl/point_types.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/registration/icp.h>
-#include <pcl-1.7/pcl/keypoints/harris_3d.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl_ros/point_cloud.h>
+#include <ros/ros.h>
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -60,8 +55,7 @@ bool driveKeyboard(ros::Publisher cmd_vel_pub_)
   //while(nh_.ok()){
 
     std::cin.getline(cmd, 50);
-    if(cmd[0]!='+' && cmd[0]!='l' && cmd[0]!='r' && cmd[0]!='.')
-    {
+    if(cmd[0]!='+' && cmd[0]!='l' && cmd[0]!='r' && cmd[0]!='.') {
       std::cout << "unknown command:" << cmd << "\n";
       //continue;
     }
