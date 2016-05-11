@@ -40,6 +40,7 @@
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
 
 using namespace pcl;
 
@@ -149,7 +150,7 @@ void simpleVis (){
   	pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
     //pcl::visualization::CloudViewer viewer_2 ("Cloud_2 Viewer");
 	while(!viewer.wasStopped()){
-	  viewer.showCloud (cloud_1);
+	  viewer.showCloud (mapa);
     //viewer_2.showCloud (cloud_2);
 	  boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
 	}
@@ -250,6 +251,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     cout << "entro por el if" << endl;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>(*msg));  
     copyPointCloud(*cloud, *cloud_1);
+    copyPointCloud(*cloud, *mapa);
     cout << "Puntos capturados_1: " << cloud->size() << endl;
     empieza = false;
   }
@@ -366,8 +368,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
       registration::CorrespondenceRejectorSampleConsensus<PointXYZRGB> corr_rej_sac;
       corr_rej_sac.setInputSource(cloud_2);
       corr_rej_sac.setInputTarget(cloud_1);
-      // ni zorra de que hace esto
-      // Creo que es el ransac
+      // ransac
       corr_rej_sac.setInlierThreshold(0.1);
       corr_rej_sac.setMaximumIterations(1000);
       corr_rej_sac.setInputCorrespondences(correspondences);
@@ -377,10 +378,23 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
 
       cout << "Despues de todo el lio nos quedamos con: " << correspondences_result_rej_sac->size() << " correspondencias" << endl;
       cout << "transform from SAC: " << endl;
-      cout << transform_res_from_SAC << endl;
+      cout <<  transform_res_from_SAC  << endl;
+
+      // transformpointcloud
+      transformPointCloud(*cloud_2,*mapa,transform_res_from_SAC);
+
+      copyPointCloud(*cloud_2, *cloud_1);
 
     } 
   }
+}
+
+void turn(ros::Publisher cmd_vel_pub_)
+{
+  geometry_msgs::Twist base_cmd;
+  base_cmd.angular.z = 0.15;
+  cmd_vel_pub_.publish(base_cmd);
+  //cout << "en teoria girando" << endl;
 }
 
 int main(int argc, char** argv)
@@ -389,7 +403,7 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
-  //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
+  ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
 
   while(ros::ok())
@@ -397,6 +411,7 @@ int main(int argc, char** argv)
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
   	//driveKeyboard(cmd_vel_pub_);
 		ros::spinOnce();
+    //turn(cmd_vel_pub_);
 	
 	//1. Extracción de características.
 	//Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
