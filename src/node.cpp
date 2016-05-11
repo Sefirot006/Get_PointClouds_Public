@@ -3,46 +3,43 @@
 // Importante
 // http://www.jeffdelmerico.com/wp-content/uploads/2014/03/pcl_tutorial.pdf
 
-
-//transform pointclouds
-#include <ros/ros.h>
-#include <pcl_ros/point_cloud.h>
-#include <pcl/point_types.h>
 #include <boost/foreach.hpp>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/filters/voxel_grid.h>
 #include <geometry_msgs/Twist.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
+#include <pcl-1.7/pcl/keypoints/harris_3d.h>
 #include <pcl/common/io.h>
-#include <pcl/keypoints/sift_keypoint.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/features/pfh.h>
 #include <pcl/features/fpfh.h>
 #include <pcl/features/fpfh_omp.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/features/pfh.h>
 #include <pcl/features/pfhrgb.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/keypoints/sift_keypoint.h>
+#include <pcl/point_types.h>
 #include <pcl/registration/correspondence_estimation.h>
+#include <pcl/registration/correspondence_rejection.h>
 #include <pcl/registration/correspondence_rejection_distance.h>
 #include <pcl/registration/correspondence_rejection_median_distance.h>
-#include <pcl/registration/correspondence_rejection_surface_normal.h>
-#include <pcl/registration/correspondence_rejection.h>
 #include <pcl/registration/correspondence_rejection_one_to_one.h>
 #include <pcl/registration/correspondence_rejection_sample_consensus.h>
+#include <pcl/registration/correspondence_rejection_surface_normal.h>
 #include <pcl/registration/correspondence_rejection_trimmed.h>
 #include <pcl/registration/correspondence_rejection_var_trimmed.h>
+#include <pcl/registration/icp.h>
 #include <pcl/registration/transformation_estimation_lm.h>
 #include <pcl/registration/transformation_estimation_svd.h>
-#include <pcl/point_types.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/registration/icp.h>
-#include <pcl-1.7/pcl/keypoints/harris_3d.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl_ros/point_cloud.h>
+#include <ros/ros.h>
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
 
 using namespace pcl;
+
+pcl::visualization::PCLVisualizer::Ptr viewer;
 
 bool empieza = true;
 
@@ -59,8 +56,7 @@ bool driveKeyboard(ros::Publisher cmd_vel_pub_)
   //while(nh_.ok()){
 
     std::cin.getline(cmd, 50);
-    if(cmd[0]!='+' && cmd[0]!='l' && cmd[0]!='r' && cmd[0]!='.')
-    {
+    if(cmd[0]!='+' && cmd[0]!='l' && cmd[0]!='r' && cmd[0]!='.') {
       std::cout << "unknown command:" << cmd << "\n";
       //continue;
     }
@@ -147,13 +143,13 @@ void HARRISdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::P
 }
 
 void simpleVis (){
-  	pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
+      pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
     //pcl::visualization::CloudViewer viewer_2 ("Cloud_2 Viewer");
-	while(!viewer.wasStopped()){
+    while(!viewer.wasStopped()){
 	  viewer.showCloud (mapa);
     //viewer_2.showCloud (cloud_2);
-	  boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
-	}
+      boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+    }
 }
 
 void PFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointWithScale>::Ptr &keypoints, 
@@ -389,12 +385,52 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
   }
 }
 
-void turn(ros::Publisher cmd_vel_pub_)
-{
-  geometry_msgs::Twist base_cmd;
-  base_cmd.angular.z = 0.15;
-  cmd_vel_pub_.publish(base_cmd);
-  //cout << "en teoria girando" << endl;
+void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant){
+    //pcl::visualization::PCLVisualizer::Ptr viewer;//objeto viewer
+
+    //constructor/inicialización:
+    viewer = pcl::visualization::PCLVisualizer::Ptr(new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    viewer->setBackgroundColor (0, 0, 0);
+
+    //viewer->addCoordinateSystem (1.0); //podriamos dibujar un sistema de coordenadas si quisieramos
+    viewer->initCameraParameters ();
+
+    //visualizar nube “cloud”;
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);   //esto es el manejador de color de la nube "cloud"
+    if (!viewer->updatePointCloud (cloud,rgb, "cloud")) //intento actualizar la nube y si no existe la creo.
+        viewer->addPointCloud(cloud,rgb,"cloud");
+
+    //para “bloquear” el visualizador podemos poner un bucle que atienda a los eventos. obviamente es una solución temporal ya que nuestro programa no se puede quedar bloqueado visualizando. 
+    while (!viewer->wasStopped()){
+        viewer->spinOnce(100);
+        boost::this_thread::sleep (boost::posix_time::microseconds (10));
+    }
+
+    //Una vez visto un ejemplo de como dibujar una nube sobre el visualizador de pcl, procedemos a visualizar las correspondencias. El objeto correspondencias de PCL tiene un conjunto de correspondencias que no es mas que dos índices a los puntos de los features. Por tanto, las nubes a pasarle a esta función tienen que ser las correspondientes que se hayan usado para las correspondencias.
+    //TODO -> nube anterior
+    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant; // = 
+    Eigen::Affine3f transfrom_translation = pcl::getTransformation(5.0, 0, 0, 0, 0, 0);
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr n_ant_transformed(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant_transformed (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    pcl::transformPointCloud (*cloud_ant, *cloud_ant_transformed,transfrom_translation);
+    pcl::transformPointCloud (*n_ant, *n_ant_transformed,transfrom_translation);
+
+
+     //pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGB> green(cloud, 0, 255, 0);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgbcloud(cloud);
+    if (!viewer->updatePointCloud (cloud,rgbcloud, "cloudn1")) //intento actualizar la nube y si no existe la creo.
+        viewer->addPointCloud(cloud,rgbcloud,"cloudn1");
+
+    //pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGB> red(cloud_ant, 255, 0, 0);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgbcloud_ant(cloud_ant_transformed);
+    if (!viewer->updatePointCloud (cloud_ant_transformed,rgbcloud_ant, "cloudn2")) //intento actualizar la nube y si no existe la creo.
+        viewer->addPointCloud(cloud_ant_transformed,rgbcloud_ant,"cloudn2");
+    
+    string corresname="correspondences";
+    if (!viewer->updateCorrespondences<pcl::PointXYZ>(n_current,n_ant_transformed,correspondeces_sac,1)) //intento actualizar la nube y si no existe la creo.
+        viewer->addCorrespondences<pcl::PointXYZ>(n_current,n_ant_transformed,correspondeces_sac,1, corresname);
 }
 
 int main(int argc, char** argv)
@@ -409,20 +445,20 @@ int main(int argc, char** argv)
   while(ros::ok())
   {
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
-  	//driveKeyboard(cmd_vel_pub_);
-		ros::spinOnce();
-    //turn(cmd_vel_pub_);
-	
-	//1. Extracción de características.
-	//Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
-	//un detector y un descriptor de características. Habrá que experimentar con las opciones 
-	//disponibles para determinar cuál es el más adecuado (por tiempo de ejecución y eficacia). 
+	//driveKeyboard(cmd_vel_pub_);
+	ros::spinOnce();
+	viewer->spinOnce(1);
+    
+    //1. Extracción de características.
+    //Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
+    //un detector y un descriptor de características. Habrá que experimentar con las opciones 
+    //disponibles para determinar cuál es el más adecuado (por tiempo de ejecución y eficacia). 
     //feature_detector(visu_pc, 0.005f, 6, 4, 0.005f);
 
-	//2. Encontrar emparejamientos.
-	//Usaremos el método que proporciona PCL para encontrar las correspondencias. 
-	//El resultado de este paso es un conjunto de emparejamiento.
-	
+    //2. Encontrar emparejamientos.
+    //Usaremos el método que proporciona PCL para encontrar las correspondencias. 
+    //El resultado de este paso es un conjunto de emparejamiento.
+    
 
     //3. Determinar la mejor transformación que explica los emparejamientos.
     //Es posible que haya muchos malos emparejamientos, por ello en este paso 
@@ -430,11 +466,11 @@ int main(int argc, char** argv)
     //emparejamientos encontrados. Para ello, usaremos el algoritmo RANSAC.
 
 
-	//4. Aplicar filtro de reducción VoxelGrid + Construcción del mapa.
-	//Por último, hay que construir el mapa. Como cada toma de la Kinect tiene 
-	//aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas 
-	//tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos. 
-	//Para ellos, podemos usar el filtro de reducción VoxelGrid, disponible en PCL. 
+    //4. Aplicar filtro de reducción VoxelGrid + Construcción del mapa.
+    //Por último, hay que construir el mapa. Como cada toma de la Kinect tiene 
+    //aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas 
+    //tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos. 
+    //Para ellos, podemos usar el filtro de reducción VoxelGrid, disponible en PCL. 
 
 
   }
