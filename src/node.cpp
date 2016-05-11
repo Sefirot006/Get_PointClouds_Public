@@ -39,7 +39,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRG
 
 using namespace pcl;
 
-pcl::visualization::PCLVisualizer::Ptr viewer;
+//pcl::visualization::PCLVisualizer::Ptr viewer;
 
 bool empieza = true;
 
@@ -227,9 +227,7 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   copyPointCloud(*prueba,*result_ptr);
 
   //std::cout << "No of PFH points in the descriptors are " << result_ptr->points.size () << std::endl;
-
   copyPointCloud(*result_ptr,descriptors_out);
-
 }
 
 
@@ -384,8 +382,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     } 
   }
 }
-
-void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant){
+/*
+void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant, pcl::PointCloud<pcl::PointXYZRGB>::Ptr n_ant){
     //pcl::visualization::PCLVisualizer::Ptr viewer;//objeto viewer
 
     //constructor/inicialización:
@@ -428,11 +426,11 @@ void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::Point
     if (!viewer->updatePointCloud (cloud_ant_transformed,rgbcloud_ant, "cloudn2")) //intento actualizar la nube y si no existe la creo.
         viewer->addPointCloud(cloud_ant_transformed,rgbcloud_ant,"cloudn2");
     
-    string corresname="correspondences";
+    std::string corresname="correspondences";
     if (!viewer->updateCorrespondences<pcl::PointXYZ>(n_current,n_ant_transformed,correspondeces_sac,1)) //intento actualizar la nube y si no existe la creo.
         viewer->addCorrespondences<pcl::PointXYZ>(n_current,n_ant_transformed,correspondeces_sac,1, corresname);
 }
-
+*/
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
@@ -447,7 +445,7 @@ int main(int argc, char** argv)
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	//driveKeyboard(cmd_vel_pub_);
 	ros::spinOnce();
-	viewer->spinOnce(1);
+	//viewer->spinOnce(1);
     
     //1. Extracción de características.
     //Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
