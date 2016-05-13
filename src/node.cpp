@@ -40,7 +40,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRG
 
 using namespace pcl;
 
-pcl::visualization::PCLVisualizer::Ptr viewer;
+//pcl::visualization::PCLVisualizer::Ptr viewer;
 
 bool empieza = true;
 
@@ -228,9 +228,7 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   copyPointCloud(*prueba,*result_ptr);
 
   //std::cout << "No of PFH points in the descriptors are " << result_ptr->points.size () << std::endl;
-
   copyPointCloud(*result_ptr,descriptors_out);
-
 }
 
 
@@ -427,6 +425,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
 }
 
 /**
+
 void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant, pcl::PointCloud<pcl::PointXYZRGB>::Ptr n_ant){
     //pcl::visualization::PCLVisualizer::Ptr viewer;//objeto viewer
 
