@@ -33,6 +33,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <ros/ros.h>
 
+
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -245,7 +246,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
 {
   if(empieza==true){
     cout << "entro por el if" << endl;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>(*msg));  
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>(*msg)); 
+    // Copia la primera nube de puntos en la segunda 
     copyPointCloud(*cloud, *cloud_1);
     copyPointCloud(*cloud, *mapa);
     cout << "Puntos capturados_1: " << cloud->size() << endl;
@@ -255,8 +257,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     cout << "entro por el else" << endl;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_aux (new pcl::PointCloud<pcl::PointXYZRGB>(*msg));  
     copyPointCloud(*cloud_aux, *cloud_2);
-    cout << "Puntos capturados_2: " << cloud_aux->size() << endl;
+    cout << "Puntos capturados_2: " << cloud_2->size() << endl;
 
+    // Declaraciones
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
     PointCloud<pcl::PointXYZRGB>::Ptr pcKeyPoints_1XYZ (new pcl::PointCloud<pcl::PointXYZRGB>);
     PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints_1 (new pcl::PointCloud<pcl::PointWithScale>);
@@ -267,6 +270,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints_2 (new pcl::PointCloud<pcl::PointWithScale>);
     PointCloud<PFHSignature125>::Ptr cloudDescriptors_2 (new pcl::PointCloud<PFHSignature125>);
 
+    // Filtrado de la nube y quitamos los NaN
     pcl::VoxelGrid<pcl::PointXYZRGB > vGrid;
     vGrid.setInputCloud (cloud_1);
     vGrid.setLeafSize (0.05f, 0.05f, 0.05f);
@@ -277,8 +281,11 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     cloud_filtered_1->is_dense = false;
     removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered_1, *cloud_filtered_1, indices);
     cout << "Quitamos los NAN y quedan: " << cloud_filtered_1->size() << endl;
-    cloud_1 = cloud_filtered_1;
+    //cloud_1 = cloud_filtered_1;
+    copyPointCloud(*cloud_filtered_1, *cloud_1);
+    cout << "Comprobacion del copy(tiene que dar los mismos puntos que en la linea anterior): " << cloud_1->size() << endl;
 
+    // Filtrado de la nube y quitamos los NaN
     vGrid.setInputCloud (cloud_2);
     vGrid.filter (*cloud_filtered_2);
     cout << "Puntos tras VG_2: " << cloud_filtered_2->size() << endl;
@@ -288,8 +295,10 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered_2, *cloud_filtered_2, indices_2);
     cout << "Quitamos los NAN y quedan: " << cloud_filtered_2->size() << endl;
 
-    cloud_2 = cloud_filtered_2;  
-    
+    copyPointCloud(*cloud_filtered_2, *cloud_2);
+    cout << "Comprobacion del copy(tiene que dar los mismos puntos que en la linea anterior): " << cloud_2->size() << endl;
+
+
     pcl::PointCloud<pcl::Normal>::Ptr normals_1 (new pcl::PointCloud<pcl::Normal>);
     pcl::PointCloud<pcl::Normal>::Ptr normals_2 (new pcl::PointCloud<pcl::Normal>);
     const float normal_radius = 0.03;
@@ -327,36 +336,19 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
       std::cout << "No of PFH points in the descriptors_1 are " << cloudDescriptors_1->points.size () << std::endl;
       std::cout << "No of PFH points in the descriptors_2 are " << cloudDescriptors_2->points.size () << std::endl;
 
-      // Y esto creo que peta por lo de PFHSignature125, en el ejemplo usa pointxyz
-      // Podria probar el de harris a ver si es mejor, aun no lo he mirado
-      // enlace: http://robotica.unileon.es/mediawiki/index.php/PCL/OpenNI_tutorial_3:_Cloud_processing_%28advanced%29#Iterative_Closest_Point_.28ICP.29
-
-      /**
-      IterativeClosestPoint<PFHSignature125,PFHSignature125> registration;
-      registration.setInputSource(cloudDescriptors_2);
-      registration.setInputTarget(cloudDescriptors_1);
-
-      registration.align(*cloudDescriptors_1);
-      if(registration.hasConverged()){
-        std::cout << "ICP converged." << std::endl
-          << "The score is " << registration.getFitnessScore() << std::endl;
-          std::cout << "Transformation matrix:" << std::endl;
-          std::cout << registration.getFinalTransformation() << std::endl;
-      }
-      else std::cout << "ICP did not converge." << std::endl;
-      */
-
       // Con el HARRIS si que funciona
       
       // CorrespondenceRejactorSampleConsensus
-      boost::shared_ptr<Correspondences> correspondences (new Correspondences);
+      /**
       registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
       corr_est.setInputSource(cloudDescriptors_2);
       corr_est.setInputTarget(cloudDescriptors_1);
 
       cout << "antes de determinar las correspondencias" << endl;      
 
-      corr_est.determineCorrespondences (*correspondences);
+      boost::shared_ptr<Correspondences> correspondences (new Correspondences);
+      //corr_est.determineCorrespondences (*correspondences);
+      corr_est.determineReciprocalCorrespondences (*correspondences);
 
       cout << "ya se han determinado las correspondencias" << endl;
 
@@ -375,9 +367,58 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
       cout << "Despues de todo el lio nos quedamos con: " << correspondences_result_rej_sac->size() << " correspondencias" << endl;
       cout << "transform from SAC: " << endl;
       cout <<  transform_res_from_SAC  << endl;
+      */
 
+      // Fin del CorrespondenceRejactorSampleConsensus
+
+      // Esto va folladisimo en comparacion con el CorrespondenceRejactorSampleConsensus
+      // TransformationEstimationSVD
+      boost::shared_ptr<pcl::Correspondences> correspondences (new pcl::Correspondences);
+      pcl::registration::CorrespondenceEstimation<PointXYZRGB, PointXYZRGB> corr_est;
+      corr_est.setInputSource (cloud_2);
+      corr_est.setInputTarget (cloud_1);
+      corr_est.determineReciprocalCorrespondences (*correspondences);
+
+      Eigen::Matrix4f transform_res_from_SVD;
+      registration::TransformationEstimationSVD<PointXYZRGB, PointXYZRGB> trans_est_svd;
+      trans_est_svd.estimateRigidTransformation(*cloud_2, *cloud_1,
+                                                *correspondences,
+                                                transform_res_from_SVD);
+
+      cout << "Despues de todo el lio nos quedamos con: " << correspondences->size() << " correspondencias" << endl;
+      cout << "transform from SAC: " << endl;
+      cout <<  transform_res_from_SVD  << endl;
+
+      // Fin del TransformationEstimationSVD
+
+      /**
+      // nuevo ICP
+      IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
+      icp.setInputSource(cloud_2);
+      icp.setInputTarget(cloud_1);
+
+      PointCloud<PointXYZRGB> final;
+      icp.align(final);
+      std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
+      std::cout << icp.getFinalTransformation() << std::endl;
+      Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
+      */
+      
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
       // transformpointcloud
-      transformPointCloud(*cloud_2,*mapa,transform_res_from_SAC);
+      transformPointCloud(*cloud_1,*transformed_cloud,transform_res_from_SVD);
+
+      cout << "Despues de la transformacion" << endl;
+      
+      //cout << "la cloud_1 tiene: " << cloud_1->points.size() << " puntos" << endl;
+      //cout << "la transformed_cloud tiene: " << transformed_cloud->points.size() << " puntos" << endl;
+  
+      for(int i=0;i<transformed_cloud->points.size();i++){
+        mapa->points.push_back(transformed_cloud->points[i]);
+      } 
+      
+      // Esta mierda no funciona
+      //mapa += transformed_cloud;
 
       copyPointCloud(*cloud_2, *cloud_1);
 
@@ -385,7 +426,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
   }
 }
 
-void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant){
+/**
+void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant, pcl::PointCloud<pcl::PointXYZRGB>::Ptr n_ant){
     //pcl::visualization::PCLVisualizer::Ptr viewer;//objeto viewer
 
     //constructor/inicialización:
@@ -415,7 +457,7 @@ void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::Point
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant_transformed (new pcl::PointCloud<pcl::PointXYZRGB>);
 
     pcl::transformPointCloud (*cloud_ant, *cloud_ant_transformed,transfrom_translation);
-    pcl::transformPointCloud (*n_ant, *n_ant_transformed,transfrom_translation);
+    //pcl::transformPointCloud (*n_ant, *n_ant_transformed,transfrom_translation);
 
 
      //pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGB> green(cloud, 0, 255, 0);
@@ -428,10 +470,11 @@ void verEmparejamientos(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::Point
     if (!viewer->updatePointCloud (cloud_ant_transformed,rgbcloud_ant, "cloudn2")) //intento actualizar la nube y si no existe la creo.
         viewer->addPointCloud(cloud_ant_transformed,rgbcloud_ant,"cloudn2");
     
-    string corresname="correspondences";
+    std::string corresname="correspondences";
     if (!viewer->updateCorrespondences<pcl::PointXYZ>(n_current,n_ant_transformed,correspondeces_sac,1)) //intento actualizar la nube y si no existe la creo.
         viewer->addCorrespondences<pcl::PointXYZ>(n_current,n_ant_transformed,correspondeces_sac,1, corresname);
 }
+*/
 
 int main(int argc, char** argv)
 {
@@ -447,7 +490,7 @@ int main(int argc, char** argv)
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	//driveKeyboard(cmd_vel_pub_);
 	ros::spinOnce();
-	viewer->spinOnce(1);
+	//viewer->spinOnce(1);
     
     //1. Extracción de características.
     //Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar 
