@@ -18,26 +18,25 @@
 #include <pcl/keypoints/sift_keypoint.h>
 #include <pcl/point_types.h>
 #include <pcl/registration/correspondence_estimation.h>
-#include <pcl/registration/correspondence_rejection.h>
-#include <pcl/registration/correspondence_rejection_distance.h>
-#include <pcl/registration/correspondence_rejection_median_distance.h>
-#include <pcl/registration/correspondence_rejection_one_to_one.h>
+//#include <pcl/registration/correspondence_rejection.h>
+//#include <pcl/registration/correspondence_rejection_distance.h>
+//#include <pcl/registration/correspondence_rejection_median_distance.h>
+//#include <pcl/registration/correspondence_rejection_one_to_one.h>
 #include <pcl/registration/correspondence_rejection_sample_consensus.h>
 #include <pcl/registration/correspondence_rejection_surface_normal.h>
 #include <pcl/registration/correspondence_rejection_trimmed.h>
 #include <pcl/registration/correspondence_rejection_var_trimmed.h>
 #include <pcl/registration/icp.h>
-#include <pcl/registration/transformation_estimation_lm.h>
-#include <pcl/registration/transformation_estimation_svd.h>
+//#include <pcl/registration/transformation_estimation_lm.h>
+//#include <pcl/registration/transformation_estimation_svd.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_ros/point_cloud.h>
 #include <ros/ros.h>
 
-
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_actual (new pcl::PointCloud<pcl::PointXYZRGB>);
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
 
 using namespace pcl;
 
@@ -503,6 +502,7 @@ int main(int argc, char** argv)
 	  //driveKeyboard(cmd_vel_pub_);
     ros::spinOnce();
     //viewer->spinOnce(1);
+
 
     ///////////////////
     //   Pendiente:  //
