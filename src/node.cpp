@@ -204,8 +204,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
 {
   if(empieza==true){
     cout << "entro por el if" << endl;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>(*msg)); 
-    // Copia la primera nube de puntos en la segunda 
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>(*msg));
+    // Copia la primera nube de puntos en la segunda
     copyPointCloud(*cloud, *cloud_ant);
     copyPointCloud(*cloud, *mapa);
     cout << "Puntos capturados_1: " << cloud->size() << endl;
@@ -214,7 +214,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
   else{
     cout << "entro por el else" << endl;
 /*
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_aux (new pcl::PointCloud<pcl::PointXYZRGB>(*msg));  
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_aux (new pcl::PointCloud<pcl::PointXYZRGB>(*msg));
     copyPointCloud(*cloud_aux, *cloud_actual);
     cout << "Puntos capturados_2: " << cloud_actual->size() << endl;
 
@@ -268,12 +268,12 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     vGrid.setLeafSize (0.05f, 0.05f, 0.05f);
     vGrid.filter (*cloud_filtered_ant);
     cout << "Puntos tras VG_ant: " << cloud_filtered_ant->size() << endl;
-    
+
     std::vector<int> indices;
     cloud_filtered_ant->is_dense = false;
     removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered_ant, *cloud_filtered_ant, indices);
     cout << "Quitamos los NAN y quedan: " << cloud_filtered_ant->size() << endl;
-    
+
     //copyPointCloud(*cloud_filtered_ant, *mapa);
     //cout << "Comprobacion del copy(tiene que dar los mismos puntos que en la linea anterior): " << mapa->size() << endl;
 
@@ -309,12 +309,12 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
     //std::cout << "No of SIFT points in the keypoints_1 are " << pcKeyPoints_1->points.size () << std::endl;
     //std::cout << "No of SIFT points in the keypoints_2 are " << pcKeyPoints_2->points.size () << std::endl;
     //cout << "paso la deteccion" << endl;
-    
+
     if((pcKeyPoints_ant->size() > 10 && pcKeyPoints_actual->size() > 10) || (pcKeyPoints_antXYZ->size() > 10 && pcKeyPoints_actualXYZ->size() > 10)){
       cout << "paso por el if" << endl;
 
       // Esto para el HARRIS
-      compute_surface_normals(pcKeyPoints_antXYZ, normal_radius, normals_ant);  
+      compute_surface_normals(pcKeyPoints_antXYZ, normal_radius, normals_ant);
       compute_surface_normals(pcKeyPoints_actualXYZ, normal_radius, normals_actual);
 
       // features SIFT
@@ -331,7 +331,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
       // Con el HARRIS si que funciona
 
       // CorrespondenceRejactorSampleConsensus
-      
+
       registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
       corr_est.setInputSource(cloudDescriptors_actual);
       corr_est.setInputTarget(cloudDescriptors_ant);
@@ -359,7 +359,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
       cout << "Despues de todo el lio nos quedamos con: " << correspondences->size() << " ó: " << correspondences_result_rej_sac->size() << " correspondencias" << endl;
       cout << "transform from SAC: " << endl;
       cout <<  transform_res_from_SAC  << endl;
-      
+
 
       // Fin del CorrespondenceRejactorSampleConsensus
 
@@ -401,7 +401,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
       std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
       std::cout << icp.getFinalTransformation() << std::endl;
       Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
-    
+
 
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
       // transformpointcloud
@@ -409,7 +409,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
 
       cout << "Despues de la transformacion" << endl;
       */
-      
+
       *mapa += *transformed_cloud;
 
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_map (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -417,7 +417,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg)
       vGrid.filter (*cloud_filtered_map);
       cout << "Puntos del mapa antes del filtrado y de la visualizacion: " << mapa->points.size() << endl;
       cout << "Puntos tras VG_mapa antes de la visualizacion: " << cloud_filtered_map->size() << endl;
-      
+
       swap(cloud_ant,cloud_actual);
       //copyPointCloud(*cloud_actual, *cloud_ant);
       //copyPointCloud(*cloud_2, *cloud_1);
@@ -486,29 +486,42 @@ int main(int argc, char** argv)
   //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
 
-  
+  ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
+  gazebo_msgs::SetModelState setmodelstate;
+  gazebo_msgs::ModelState modelstate;
+  //modelstate.model_name = "KKTurtleBotKinect";
+  modelstate.model_name = "mobile_base";
+
   while(ros::ok())
   {
-    // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
-	//driveKeyboard(cmd_vel_pub_);
-  	ros::spinOnce();
-  	
-    ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
-    gazebo_msgs::SetModelState setmodelstate;
-    gazebo_msgs::ModelState modelstate;
-    //modelstate.model_name = "KKTurtleBotKinect";
-    modelstate.model_name = "mobile_base";
-    modelstate.twist.angular.z = 0.3;
+    //modelstate.twist.angular.z += 0.1;
+    modelstate.pose.orientation.z += 0.1;
     setmodelstate.request.model_state = modelstate;
     client.call(setmodelstate);
 
-  //viewer->spinOnce(1);
+    // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
+	  //driveKeyboard(cmd_vel_pub_);
+    ros::spinOnce();
+    //viewer->spinOnce(1);
+
+    ///////////////////
+    //   Pendiente:  //
+    ///////////////////
+    //- Generar fichero de recorrido por las estancias, para ir leyendo las posiciones y rotaciones desde las que se irán obteniendo las nubes de puntos.
+    //- Volcado de mapa final a fichero para que los profesores puedan cargarlo con un programa externo que les proporcionaremos.
+
+
+    //////////////////////////////////////////////
+    //  Fases para la construcción de mapa 3D.  //
+    //////////////////////////////////////////////
+
 
     //1. Extracción de características.
     //Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar
     //un detector y un descriptor de características. Habrá que experimentar con las opciones
     //disponibles para determinar cuál es el más adecuado (por tiempo de ejecución y eficacia).
     //feature_detector(visu_pc, 0.005f, 6, 4, 0.005f);
+
 
     //2. Encontrar emparejamientos.
     //Usaremos el método que proporciona PCL para encontrar las correspondencias.
