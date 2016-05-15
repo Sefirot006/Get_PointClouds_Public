@@ -350,7 +350,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
       transformPointCloud(*cloud_filtered, *transformed_cloud, transform_res_from_SAC);
 
-      cout << "Después de la transformación." << endl;
+      cout << "Después de la transformación (RANSAC)." << endl;
 
       /*
       // nuevo ICP
@@ -371,6 +371,25 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       cout << "Despues de la transformacion" << endl;
       */
+      // nuevo ICP
+      IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
+      icp.setInputSource(cloud_filtered);
+      icp.setInputTarget(cloud_ant);
+      //icp.setInputTarget(mapa);
+
+      PointCloud<PointXYZRGB> final;
+      icp.align(final);
+      std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
+      std::cout << icp.getFinalTransformation() << std::endl;
+      Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
+
+      //pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
+      // transformpointcloud
+      transformPointCloud(*cloud_filtered, *transformed_cloud, matrix_icp);
+      //cout << "Matriz de transformación por ICP: " << endl;
+      //cout << matrix_icp << endl;
+
+      cout << "Después de la transformación (ICP)." << endl;
 
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
@@ -515,7 +534,9 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
 
-  float rotation = 0.0f;
+  double rotation = 0.0;
+
+  int i = 0;
 
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
@@ -532,7 +553,8 @@ int main(int argc, char** argv)
   gazebo_msgs::SetModelState setmodelstate;
   gazebo_msgs::ModelState modelstate;
   modelstate.model_name = "mobile_base";
-  modelstate.twist.angular.z = 0.05;
+  modelstate.twist.angular.z = 0.03;
+  modelstate.pose.orientation.z = 0;
   setmodelstate.request.model_state = modelstate;
   client.call(setmodelstate);
 
@@ -546,8 +568,8 @@ int main(int argc, char** argv)
 
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	  //driveKeyboard(cmd_vel_pub_);
-    cout << "__________________________________________________________\n";
     ros::spinOnce();
+    cout << "__________________________________________________________\n";
     //viewer->spinOnce(1);
 
 
