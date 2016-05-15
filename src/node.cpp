@@ -515,6 +515,7 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
 
+  float rotation = 0.0f;
 
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
@@ -522,17 +523,25 @@ int main(int argc, char** argv)
   //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
 
+  //ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
+  //gazebo_msgs::SetModelState setmodelstate;
+  //gazebo_msgs::ModelState modelstate;
+  //modelstate.model_name = "mobile_base";
+  //modelstate.twist.angular.z = 0.1;
   ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
   gazebo_msgs::SetModelState setmodelstate;
   gazebo_msgs::ModelState modelstate;
   modelstate.model_name = "mobile_base";
-  //modelstate.twist.angular.z = 0.1;
+  modelstate.twist.angular.z = 0.05;
+  setmodelstate.request.model_state = modelstate;
+  client.call(setmodelstate);
 
   while(ros::ok())
   {
-    modelstate.pose.orientation.z += 0.1;
-    setmodelstate.request.model_state = modelstate;
-    client.call(setmodelstate);
+    //modelstate.pose.orientation.z += 0.1;
+    //modelstate.pose.orientation.z = rotation + 0.2;
+    //setmodelstate.request.model_state = modelstate;
+    //client.call(setmodelstate);
 
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	  //driveKeyboard(cmd_vel_pub_);
