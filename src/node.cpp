@@ -394,7 +394,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   *cloudDescriptors_ant = *cloudDescriptors;
   *pcKeyPoints_antXYZ = *pcKeyPoints_XYZ;
   *normals_ant = *normals;
-  
+
 }
 
 
@@ -617,5 +617,3 @@ int main(int argc, char** argv)
 
   // Fin codigo de pureba de dos nubes
 }
-
-
