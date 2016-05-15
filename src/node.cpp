@@ -297,6 +297,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     copyPointCloud(*cloud_filtered, *cloud_ant);
     copyPointCloud(*cloud_filtered, *mapa);
     empieza = false;
+    // Almacenando la nube en disco
+    //pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud);
+    //cout << "Saved " << cloud->points.size () << " data points to test_pcd.pcd." << std::endl;
   }
 
   //Si no es la primera nube...
@@ -391,12 +394,128 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   *cloudDescriptors_ant = *cloudDescriptors;
   *pcKeyPoints_antXYZ = *pcKeyPoints_XYZ;
   *normals_ant = *normals;
-  *cloudDescriptors_ant = *cloudDescriptors;
+  
 }
+
+
+// Estas dos funciones son para el codigo de prueba con las dos nubes
+
+void simpleVisPrueba(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1){
+    //pcl::visualization::CloudViewer viewer ("Cloud Viewer");
+    pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
+    //pcl::visualization::CloudViewer viewer_2 ("Cloud_2 Viewer");
+    while(!viewer.wasStopped()){
+       viewer.showCloud (cloud_prueba_1);
+       //viewer_2.showCloud (cloud_2);
+       boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+    }
+}
+
+void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2){
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_filtered_1   (new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr      pcKeyPoints_XYZ_1  (new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors_1 (new pcl::PointCloud<pcl::PFHSignature125>);
+  std::vector<int> indices;
+
+  pcl::PointCloud<pcl::Normal>::Ptr normals_1 (new pcl::PointCloud<pcl::Normal>);
+
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_filtered_2   (new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr      pcKeyPoints_XYZ_2  (new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors_2 (new pcl::PointCloud<pcl::PFHSignature125>);
+  std::vector<int> indices_2;
+
+  pcl::PointCloud<pcl::Normal>::Ptr normals_2 (new pcl::PointCloud<pcl::Normal>);
+
+
+
+  filter_cloud(cloud_prueba_1, cloud_filtered_1);
+  filter_cloud(cloud_prueba_2, cloud_filtered_2);
+  //*cloud_filtered = *cloud;
+  cout << "Puntos tras VG: " << cloud_filtered_1->size() << endl;
+  cout << "Puntos tras VG: " << cloud_filtered_2->size() << endl;
+  //Eliminado de los NaN de la nube filtrada actual.      -> cloud_filtered
+  removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered_1, *cloud_filtered_1, indices);
+  removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered_2, *cloud_filtered_2, indices_2);
+  cout << "Quitamos los NAN y quedan: " << cloud_filtered_1->size() << endl;
+  cout << "Quitamos los NAN y quedan: " << cloud_filtered_2->size() << endl;
+  //Detección de características                          -> pcKeyPoints_XYZ
+  HARRISdetect_keypoints(cloud_filtered_1, *pcKeyPoints_XYZ_1);
+  HARRISdetect_keypoints(cloud_filtered_2, *pcKeyPoints_XYZ_2);
+  //Si detectamos un número de caracteristicas suficientes...
+  if(pcKeyPoints_XYZ_1->size() > 10 && pcKeyPoints_XYZ_2->size()>10){
+    cout << "Paso por el if" << endl;
+    //Cálculo de normales a la superficie.                -> normals
+    compute_surface_normals(pcKeyPoints_XYZ_1, normal_radius, normals_1);
+    compute_surface_normals(pcKeyPoints_XYZ_2, normal_radius, normals_2);
+    //Extracción de características.                      -> cloudDescriptors
+    PFHRGB(cloud_filtered_1, normals_1, pcKeyPoints_XYZ_1, feature_radius, *cloudDescriptors_1);
+    PFHRGB(cloud_filtered_2, normals_2, pcKeyPoints_XYZ_2, feature_radius, *cloudDescriptors_2);
+    std::cout << "Nº of PFH points in the descriptors_cloud_filtered are " << cloudDescriptors_1->points.size() << std::endl;
+    std::cout << "Nº of PFH points in the descriptors_cloud_filtered are " << cloudDescriptors_2->points.size() << std::endl;
+
+    ///////////////////////////////////////////
+    // CorrespondenceRejactorSampleConsensus //
+    ///////////////////////////////////////////
+    //Determinación de correspondencias por CorrespondenceRejactorSampleConsensus.     -> transform_res_from_SAC
+    registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
+    corr_est.setInputSource(cloudDescriptors_2);
+    corr_est.setInputTarget(cloudDescriptors_1);
+
+    cout << "Antes de determinar las correspondencias." << endl;
+
+    boost::shared_ptr<Correspondences> correspondences (new Correspondences);
+    //corr_est.determineCorrespondences (*correspondences);
+    corr_est.determineReciprocalCorrespondences (*correspondences);
+
+    cout << "Ya se han determinado las correspondencias." << endl;
+
+    boost::shared_ptr<Correspondences> correspondences_result_rej_sac (new Correspondences);
+    registration::CorrespondenceRejectorSampleConsensus<PointXYZRGB> corr_rej_sac;
+    corr_rej_sac.setInputSource(cloud_prueba_2);
+    corr_rej_sac.setInputTarget(cloud_prueba_1);
+    // ransac
+    corr_rej_sac.setInlierThreshold(0.1);
+    corr_rej_sac.setMaximumIterations(1000);
+    corr_rej_sac.setInputCorrespondences(correspondences);
+    corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
+
+    Eigen::Matrix4f transform_res_from_SAC = corr_rej_sac.getBestTransformation();
+
+    cout << "Después de todo el lío nos quedamos con: " << correspondences->size() << " ó: " << correspondences_result_rej_sac->size() << " correspondencias." << endl;
+    cout << "Matriz de transformación por Sample Consensus: " << endl;
+    cout << transform_res_from_SAC << endl;
+
+    ///////////////////////////////////////////////////
+    // Fin del CorrespondenceRejactorSampleConsensus //
+    ///////////////////////////////////////////////////
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
+    //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
+    transformPointCloud(*cloud_filtered_1, *transformed_cloud, transform_res_from_SAC);
+
+    cout << "Después de la transformación." << endl;
+
+
+    //////////////////////////////////////////////////
+    // Trabajar siempre sobre la nube transformada. //
+    //////////////////////////////////////////////////
+    *cloud_prueba_1 += *transformed_cloud;
+
+    cout << "llamada a slimplevis";
+    simpleVisPrueba(cloud_prueba_1);
+  }
+  else{
+    cout << "ERROR!" << endl;
+  }
+}
+
+// Fin de las funciones para probar con dos nubes de puntos
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
+
+  /*
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
@@ -412,9 +531,9 @@ int main(int argc, char** argv)
   while(ros::ok())
   {
     //modelstate.twist.angular.z += 0.1;
-    modelstate.pose.orientation.z += 0.1;
-    setmodelstate.request.model_state = modelstate;
-    client.call(setmodelstate);
+    //modelstate.pose.orientation.z += 0.1;
+    //setmodelstate.request.model_state = modelstate;
+    //client.call(setmodelstate);
 
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	  //driveKeyboard(cmd_vel_pub_);
@@ -467,4 +586,36 @@ int main(int argc, char** argv)
 
 
   }
+  */
+  // Fin codigo ppal
+
+  // Probando con dos nubes solo
+  // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
+  //boost::thread t(simpleVis);
+
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+
+  if ((pcl::io::loadPCDFile<pcl::PointXYZRGB> ("test_1.pcd", *cloud_prueba_1) == -1) ||
+      (pcl::io::loadPCDFile<pcl::PointXYZRGB> ("test_2.pcd", *cloud_prueba_2) == -1)) //* load the file
+  {
+    PCL_ERROR ("Couldn't read file test_1.pcd or test_2.pcd \n");
+    return (-1);
+  }
+  std::cout << "Loaded "
+            << cloud_prueba_1->width * cloud_prueba_1->height
+            << " data points from test_pcd.pcd with the following fields: "
+            << std::endl;
+
+  std::cout << "Loaded "
+            << cloud_prueba_2->width * cloud_prueba_2->height
+            << " data points from test_pcd.pcd with the following fields: "
+            << std::endl;
+
+  unirPuntos(cloud_prueba_1,cloud_prueba_2);
+
+  // Fin codigo de pureba de dos nubes
 }
+
+
