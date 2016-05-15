@@ -328,10 +328,10 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       boost::shared_ptr<Correspondences> correspondences_result_rej_sac (new Correspondences);
       registration::CorrespondenceRejectorSampleConsensus<PointXYZRGB> corr_rej_sac;
-      corr_rej_sac.setInputSource(cloud);
-      corr_rej_sac.setInputTarget(cloud_ant);
+      corr_rej_sac.setInputSource(pcKeyPoints_XYZ);
+      corr_rej_sac.setInputTarget(pcKeyPoints_antXYZ);
       // ransac
-      corr_rej_sac.setInlierThreshold(0.1);
+      corr_rej_sac.setInlierThreshold(0.02);
       corr_rej_sac.setMaximumIterations(1000);
       corr_rej_sac.setInputCorrespondences(correspondences);
       corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
@@ -471,8 +471,8 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
     boost::shared_ptr<Correspondences> correspondences_result_rej_sac (new Correspondences);
     registration::CorrespondenceRejectorSampleConsensus<PointXYZRGB> corr_rej_sac;
-    corr_rej_sac.setInputSource(cloud_prueba_2);
-    corr_rej_sac.setInputTarget(cloud_prueba_1);
+    corr_rej_sac.setInputSource(pcKeyPoints_XYZ_2);
+    corr_rej_sac.setInputTarget(pcKeyPoints_XYZ_1);
     // ransac
     corr_rej_sac.setInlierThreshold(0.1);
     corr_rej_sac.setMaximumIterations(1000);
@@ -591,8 +591,7 @@ int main(int argc, char** argv)
 
   // Probando con dos nubes solo
   // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
-  //boost::thread t(simpleVis);
-
+  
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
 
@@ -614,6 +613,7 @@ int main(int argc, char** argv)
             << std::endl;
 
   unirPuntos(cloud_prueba_1,cloud_prueba_2);
+  
 
   // Fin codigo de pureba de dos nubes
 }
