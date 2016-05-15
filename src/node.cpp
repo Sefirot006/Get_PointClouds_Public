@@ -538,7 +538,8 @@ int main(int argc, char** argv)
 
   while(ros::ok())
   {
-    //modelstate.pose.orientation.z += 0.1;
+    //modelstate.pose.orientation.x  = 0;
+    //modelstate.pose.orientation.y  = 0;
     //modelstate.pose.orientation.z = rotation + 0.2;
     //setmodelstate.request.model_state = modelstate;
     //client.call(setmodelstate);
