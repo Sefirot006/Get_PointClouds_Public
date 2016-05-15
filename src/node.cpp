@@ -515,7 +515,7 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
 
-  /*
+
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
@@ -525,15 +525,14 @@ int main(int argc, char** argv)
   ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
   gazebo_msgs::SetModelState setmodelstate;
   gazebo_msgs::ModelState modelstate;
-  //modelstate.model_name = "KKTurtleBotKinect";
   modelstate.model_name = "mobile_base";
+  //modelstate.twist.angular.z = 0.1;
 
   while(ros::ok())
   {
-    //modelstate.twist.angular.z += 0.1;
-    //modelstate.pose.orientation.z += 0.1;
-    //setmodelstate.request.model_state = modelstate;
-    //client.call(setmodelstate);
+    modelstate.pose.orientation.z += 0.1;
+    setmodelstate.request.model_state = modelstate;
+    client.call(setmodelstate);
 
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	  //driveKeyboard(cmd_vel_pub_);
@@ -586,12 +585,12 @@ int main(int argc, char** argv)
 
 
   }
-  */
+
   // Fin codigo ppal
 
   // Probando con dos nubes solo
   // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
-
+/*
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
 
@@ -614,6 +613,6 @@ int main(int argc, char** argv)
 
   unirPuntos(cloud_prueba_1,cloud_prueba_2);
 
-
+*/
   // Fin codigo de pureba de dos nubes
 }
