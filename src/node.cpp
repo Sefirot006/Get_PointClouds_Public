@@ -5,6 +5,7 @@
 
 #include <boost/foreach.hpp>
 #include <gazebo_msgs/SetModelState.h>
+#include <gazebo_msgs/ModelStates.h>
 #include <geometry_msgs/Twist.h>
 #include <pcl-1.7/pcl/keypoints/harris_3d.h>
 #include <pcl/common/io.h>
@@ -34,7 +35,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <ros/ros.h>
 
-const float normal_radius = 0.05;
+const float normal_radius = 0.05f;
 const float feature_radius = 0.05f;
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -42,7 +43,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant (new pcl::PointCloud<pcl::Point
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcKeyPoints_antXYZ (new pcl::PointCloud<pcl::PointXYZRGB>);
 //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints_ant (new pcl::PointCloud<pcl::PointWithScale>);
-pcl::PointCloud<pcl::Normal>::Ptr normals_ant (new pcl::PointCloud<pcl::Normal>);
+//pcl::PointCloud<pcl::Normal>::Ptr normals_ant (new pcl::PointCloud<pcl::Normal>);
 pcl::PointCloud<pcl::PFHSignature125>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::PFHSignature125>);
 
 using namespace pcl;
@@ -205,7 +206,7 @@ void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
   fpfh.setInputCloud (points);
   fpfh.setInputNormals (normals);
 
-  search::KdTree<PointXYZ>::Ptr tree (new search::KdTree<PointXYZRGB>);
+  search::KdTree<PointXYZRGB>::Ptr tree (new search::KdTree<PointXYZRGB>);
   fpfh.setSearchMethod (tree);
 
   PointCloud<FPFHSignature33>::Ptr fpfhs (new PointCloud<FPFHSignature33> ());
@@ -250,9 +251,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      pcKeyPoints_XYZ  (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
   //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints      (new pcl::PointCloud<pcl::PointWithScale>);
+  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
   std::vector<int> indices;
   //pcl::VoxelGrid<pcl::PointXYZRGB > vGrid;
-  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
 
   ///////////////////
   //   Pendiente:  //
@@ -301,8 +302,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   copyPointCloud(*msg, *cloud);
   cout << "Puntos capturados: " << cloud->size() << endl;
   //Filtrado de la nube actual.                           -> cloud_filtered
-  filter_cloud(cloud, cloud_filtered);
-  //*cloud_filtered = *cloud;
+  //filter_cloud(cloud, cloud_filtered);
+  *cloud_filtered = *cloud;
   cout << "Puntos tras VG: " << cloud_filtered->size() << endl;
   //Eliminado de los NaN de la nube filtrada actual.      -> cloud_filtered
   removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered, *cloud_filtered, indices);
@@ -313,7 +314,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   if(pcKeyPoints_XYZ->size() > 10){
     cout << "Paso por el if" << endl;
     //Cálculo de normales a la superficie.                -> normals
-    compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
+    //compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
+    compute_surface_normals(cloud_filtered, normal_radius, normals);
     //Extracción de características.                      -> cloudDescriptors
     PFHRGB(cloud_filtered, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
     std::cout << "Nº of PFH points in the descriptors_cloud_filtered are " << cloudDescriptors->points.size() << std::endl;
@@ -323,6 +325,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   if(empieza==true){
     cout << "Es primera nube." << endl;
     copyPointCloud(*cloud_filtered, *cloud_ant);
+    filter_cloud(cloud, cloud_filtered);
     copyPointCloud(*cloud_filtered, *mapa);
     empieza = false;
     // Almacenando la nube en disco
@@ -361,7 +364,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       corr_rej_sac.setInputTarget(pcKeyPoints_antXYZ);
       // ransac
       corr_rej_sac.setInlierThreshold(0.020);
-      corr_rej_sac.setMaximumIterations(100);
+      corr_rej_sac.setMaximumIterations(1000);
       corr_rej_sac.setInputCorrespondences(correspondences);
       corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
 
@@ -399,7 +402,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
       transformPointCloud(*cloud_filtered, *transformed_cloud, transform_res_from_SAC);
 
-      cout << "Después de la transformación." << endl;
+      cout << "Después de la transformación (RANSAC)." << endl;
 
       /*
       // nuevo ICP
@@ -421,33 +424,50 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout << "Despues de la transformacion 2" << endl;
       */
 
+      //Recogemos la nube transformada desde RANSAC.
+      // nuevo ICP
+      IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
+      //icp.setInputSource(cloud_filtered);
+      //icp.setInputSource(transformed_cloud);
+      //icp.setInputTarget(cloud_ant);
+      icp.setInputSource(pcKeyPoints_XYZ);
+      icp.setInputTarget(pcKeyPoints_antXYZ);
+      //icp.setInputTarget(mapa);
+
+      PointCloud<PointXYZRGB> final;
+      icp.align(final);
+      std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
+      std::cout << icp.getFinalTransformation() << std::endl;
+      Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
+
+      //pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
+      // transformpointcloud
+      transformPointCloud(*transformed_cloud, *transformed_cloud, matrix_icp);
+      //cout << "Matriz de transformación por ICP: " << endl;
+      //cout << matrix_icp << endl;
+
+      cout << "Después de la transformación (ICP)." << endl;
+
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
       //////////////////////////////////////////////////
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud_filtered (new pcl::PointCloud<pcl::PointXYZRGB>);
-      filter_cloud(transformed_cloud,transformed_cloud_filtered);
-      cout << "Puntos del mapa antes del filtrado y de la visualización: " << transformed_cloud->points.size() << endl;
-      cout << "Puntos tras VG_mapa antes de la visualización: " << transformed_cloud_filtered->size() << endl;
+
+      *cloud_ant = *transformed_cloud;
+      filter_cloud(transformed_cloud, transformed_cloud);
 
       *mapa += *transformed_cloud;
-
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_map (new pcl::PointCloud<pcl::PointXYZRGB>);
-      filter_cloud(mapa,cloud_filtered_map);
-      cout << "Puntos del mapa antes del filtrado y de la visualización: " << mapa->points.size() << endl;
-      cout << "Puntos tras VG_mapa antes de la visualización: " << cloud_filtered_map->size() << endl;
 
   //TODO REVISAR ESTO...
       //ANTES:
       //swap(cloud_ant,cloud);
       //AHORA:
-      *cloud_ant = *transformed_cloud;
     }
   }
   //Volcado de actual a anterior.
   *cloudDescriptors_ant = *cloudDescriptors;
   *pcKeyPoints_antXYZ = *pcKeyPoints_XYZ;
-  *normals_ant = *normals;
-  
+  //*normals_ant = *normals;
+
 }
 
 
@@ -565,34 +585,53 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
 // Fin de las funciones para probar con dos nubes de puntos
 
+
+void callbackStates(const gazebo_msgs::ModelStates::ConstPtr& msg){
+
+}
+
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
 
-  
+  double rotation = 0.0;
+
+  int i = 0;
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
   //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
 
+  //ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
+  //gazebo_msgs::SetModelState setmodelstate;
+  //gazebo_msgs::ModelState modelstate;
+  //modelstate.model_name = "mobile_base";
+  //modelstate.twist.angular.z = 0.1;
   ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
   gazebo_msgs::SetModelState setmodelstate;
   gazebo_msgs::ModelState modelstate;
-  //modelstate.model_name = "KKTurtleBotKinect";
   modelstate.model_name = "mobile_base";
+  //modelstate.twist.angular.z = 0.03;
+  //modelstate.pose.orientation.z = 0;
+  //setmodelstate.request.model_state = modelstate;
+  //client.call(setmodelstate);
+
+  ros::Subscriber submodel = nh.subscribe<gazebo_msgs::ModelStates>("/gazebo/model_states", 1, callbackStates);
 
   while(ros::ok())
   {
-    //modelstate.twist.angular.z += 0.1;
-    //modelstate.pose.orientation.z += 0.1;
-    //setmodelstate.request.model_state = modelstate;
+    //modelstate.pose.orientation.x  = 0;
+    //modelstate.pose.orientation.y  = 0;
+    modelstate.pose.orientation.z += 0.2;
+    setmodelstate.request.model_state = modelstate;
     //client.call(setmodelstate);
 
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	  //driveKeyboard(cmd_vel_pub_);
-    cout << "__________________________________________________________\n";
     ros::spinOnce();
+    cout << "__________________________________________________________\n";
     //viewer->spinOnce(1);
 
 
@@ -640,12 +679,12 @@ int main(int argc, char** argv)
 
 
   }
-  
+
   // Fin codigo ppal
 
   // Probando con dos nubes solo
   // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
-  /**
+  /*
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
 
@@ -671,5 +710,3 @@ int main(int argc, char** argv)
 
   // Fin codigo de pureba de dos nubes
 }
-
-
