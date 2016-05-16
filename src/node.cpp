@@ -435,9 +435,11 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       *cloud_ant = *transformed_cloud;
       filter_cloud(transformed_cloud, transformed_cloud);
+      std::cout << "Nº de puntos de la nube filtrada antes de añadir a mapa: " << transformed_cloud->points.size() << std::endl;
       //TODO REVISAR ESTO...
       //swap(cloud_ant,cloud);
       *mapa += *transformed_cloud;
+      std::cout << "Nº de puntos total en mapa: " << mapa->points.size() << std::endl;
     }
   }
   //Volcado de actual a anterior.
