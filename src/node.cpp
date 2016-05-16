@@ -27,6 +27,7 @@
 #include <pcl/registration/correspondence_rejection_surface_normal.h>
 #include <pcl/registration/correspondence_rejection_trimmed.h>
 #include <pcl/registration/correspondence_rejection_var_trimmed.h>
+#include <pcl/registration/ia_ransac.h>
 #include <pcl/registration/icp.h>
 //#include <pcl/registration/transformation_estimation_lm.h>
 //#include <pcl/registration/transformation_estimation_svd.h>
@@ -220,7 +221,6 @@ void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
   // Compute the features
   fpfh.compute (*fpfhs);
 
-
   copyPointCloud(*fpfhs,descriptors_out);
 
   cout << "Saliendo del pfh" << endl;
@@ -244,7 +244,6 @@ void filter_cloud(PointCloud<PointXYZRGB>::Ptr &cloud, PointCloud<PointXYZRGB>::
   vGrid.filter (*cloud_filtered);
   cloud_filtered->is_dense = false;
 }
-
 
 void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   // Declaraciones
@@ -362,8 +361,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout << "Antes de determinar las correspondencias." << endl;
 
       boost::shared_ptr<Correspondences> correspondences (new Correspondences);
-      //corr_est.determineCorrespondences (*correspondences);
-      corr_est.determineReciprocalCorrespondences (*correspondences);
+      corr_est.determineCorrespondences (*correspondences);
+      //corr_est.determineReciprocalCorrespondences (*correspondences);
 
       cout << "Ya se han determinado las correspondencias." << endl;
 
@@ -372,10 +371,13 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       corr_rej_sac.setInputSource(pcKeyPoints_XYZ);
       corr_rej_sac.setInputTarget(pcKeyPoints_antXYZ);
       // ransac
-      corr_rej_sac.setInlierThreshold(0.020);
-      corr_rej_sac.setMaximumIterations(1000);
+      corr_rej_sac.setInlierThreshold(0.05);
+      corr_rej_sac.setMaximumIterations(50);
       corr_rej_sac.setInputCorrespondences(correspondences);
+
+      cout << "Antes de obtener las correspondencias." << endl;
       corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
+      cout << "Ya se han obtenido las correspondencias." << endl;
 
       Eigen::Matrix4f transform_res_from_SAC = corr_rej_sac.getBestTransformation();
 
@@ -413,10 +415,22 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout << "Después de la transformación (RANSAC)." << endl;
 
       //Recogemos la nube transformada desde RANSAC.
-      //ICPPPPPPPPPPPPPPPP!!!
+      //Método ICP
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
       icp.setInputSource(pcKeyPoints_XYZ);
       icp.setInputTarget(pcKeyPoints_antXYZ);
+
+      //Parámetros a probar para mejorar los resultados en cuanto a tiempo y en cuanto a obtención de la distancia mínima global:
+      /*
+      int nr_iterations = 1000;
+      int epsilon ;
+      int distance ;
+      icp.setMaximumIterations(nr_iterations);
+      icp.setTransformationEpsilon(epsilon);
+      icp.setEuclideanFitnessEpsilon(distance);
+      icp.setMaxCorrespondenceDistance(distance);
+      icp.setRANSACOutlierRejectionThreshold(distance);
+      */
 
       PointCloud<PointXYZRGB> final;
       icp.align(final);
