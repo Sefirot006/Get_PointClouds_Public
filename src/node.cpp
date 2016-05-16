@@ -199,7 +199,7 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   cout << "Saliendo del pfh" << endl;
 }
 
-void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints,
+void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
           float feature_radius, PointCloud<FPFHSignature33> &descriptors_out)
 {
   FPFHEstimation<PointXYZRGB, Normal, FPFHSignature33> fpfh;
@@ -317,8 +317,12 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     //compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
     compute_surface_normals(cloud_filtered, normal_radius, normals);
     //Extracción de características.                      -> cloudDescriptors
-    PFHRGB(cloud_filtered, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
-    std::cout << "Nº of PFH points in the descriptors_cloud_filtered are " << cloudDescriptors->points.size() << std::endl;
+    
+    //PFHRGB(cloud_filtered, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+    //std::cout << "Nº of PFH points in the descriptors_cloud_filtered are " << cloudDescriptors->points.size() << std::endl;
+    
+    FPFH(cloud_filtered, normals, feature_radius, *cloudDescriptors);
+    std::cout << "Nº of FPFH points in the descriptors_cloud_filtered are " << cloudDescriptors->points.size() << std::endl;
   }
 
   //Si es la primera nube...
