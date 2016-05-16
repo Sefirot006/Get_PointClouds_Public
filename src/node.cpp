@@ -44,7 +44,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZR
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcKeyPoints_antXYZ (new pcl::PointCloud<pcl::PointXYZRGB>);
 //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints_ant (new pcl::PointCloud<pcl::PointWithScale>);
 //pcl::PointCloud<pcl::Normal>::Ptr normals_ant (new pcl::PointCloud<pcl::Normal>);
-pcl::PointCloud<pcl::PFHSignature125>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::PFHSignature125>);
+//pcl::PointCloud<pcl::PFHSignature125>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::PFHSignature125>);
+pcl::PointCloud<pcl::FPFHSignature33>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::FPFHSignature33>);
 
 using namespace pcl;
 
