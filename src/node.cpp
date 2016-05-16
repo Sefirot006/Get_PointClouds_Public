@@ -5,6 +5,7 @@
 
 #include <boost/foreach.hpp>
 #include <gazebo_msgs/SetModelState.h>
+#include <gazebo_msgs/ModelStates.h>
 #include <geometry_msgs/Twist.h>
 #include <pcl-1.7/pcl/keypoints/harris_3d.h>
 #include <pcl/common/io.h>
@@ -34,7 +35,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <ros/ros.h>
 
-const float normal_radius = 0.05;
+const float normal_radius = 0.05f;
 const float feature_radius = 0.05f;
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -273,8 +274,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   copyPointCloud(*msg, *cloud);
   cout << "Puntos capturados: " << cloud->size() << endl;
   //Filtrado de la nube actual.                           -> cloud_filtered
-  filter_cloud(cloud, cloud_filtered);
-  //*cloud_filtered = *cloud;
+  //filter_cloud(cloud, cloud_filtered);
+  *cloud_filtered = *cloud;
   cout << "Puntos tras VG: " << cloud_filtered->size() << endl;
   //Eliminado de los NaN de la nube filtrada actual.      -> cloud_filtered
   removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered, *cloud_filtered, indices);
@@ -285,7 +286,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   if(pcKeyPoints_XYZ->size() > 10){
     cout << "Paso por el if" << endl;
     //Cálculo de normales a la superficie.                -> normals
-    compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
+    //compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
+    compute_surface_normals(cloud_filtered, normal_radius, normals);
     //Extracción de características.                      -> cloudDescriptors
     PFHRGB(cloud_filtered, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
     std::cout << "Nº of PFH points in the descriptors_cloud_filtered are " << cloudDescriptors->points.size() << std::endl;
@@ -295,6 +297,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   if(empieza==true){
     cout << "Es primera nube." << endl;
     copyPointCloud(*cloud_filtered, *cloud_ant);
+    filter_cloud(cloud, cloud_filtered);
     copyPointCloud(*cloud_filtered, *mapa);
     empieza = false;
     // Almacenando la nube en disco
@@ -371,10 +374,15 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       cout << "Despues de la transformacion" << endl;
       */
+
+      //Recogemos la nube transformada desde RANSAC.
       // nuevo ICP
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
-      icp.setInputSource(cloud_filtered);
-      icp.setInputTarget(cloud_ant);
+      //icp.setInputSource(cloud_filtered);
+      //icp.setInputSource(transformed_cloud);
+      //icp.setInputTarget(cloud_ant);
+      icp.setInputSource(pcKeyPoints_XYZ);
+      icp.setInputTarget(pcKeyPoints_antXYZ);
       //icp.setInputTarget(mapa);
 
       PointCloud<PointXYZRGB> final;
@@ -385,7 +393,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       //pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
       // transformpointcloud
-      transformPointCloud(*cloud_filtered, *transformed_cloud, matrix_icp);
+      transformPointCloud(*transformed_cloud, *transformed_cloud, matrix_icp);
       //cout << "Matriz de transformación por ICP: " << endl;
       //cout << matrix_icp << endl;
 
@@ -394,6 +402,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
       //////////////////////////////////////////////////
+      *cloud_ant = *transformed_cloud;
+      filter_cloud(transformed_cloud, transformed_cloud);
       *mapa += *transformed_cloud;
 
       //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_map (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -406,7 +416,6 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //ANTES:
       //swap(cloud_ant,cloud);
       //AHORA:
-      *cloud_ant = *transformed_cloud;
     }
   }
   //Volcado de actual a anterior.
@@ -530,6 +539,12 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
 // Fin de las funciones para probar con dos nubes de puntos
 
+
+void callbackStates(const gazebo_msgs::ModelStates::ConstPtr& msg){
+
+}
+
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
@@ -553,17 +568,19 @@ int main(int argc, char** argv)
   gazebo_msgs::SetModelState setmodelstate;
   gazebo_msgs::ModelState modelstate;
   modelstate.model_name = "mobile_base";
-  modelstate.twist.angular.z = 0.03;
-  modelstate.pose.orientation.z = 0;
-  setmodelstate.request.model_state = modelstate;
-  client.call(setmodelstate);
+  //modelstate.twist.angular.z = 0.03;
+  //modelstate.pose.orientation.z = 0;
+  //setmodelstate.request.model_state = modelstate;
+  //client.call(setmodelstate);
+
+  ros::Subscriber submodel = nh.subscribe<gazebo_msgs::ModelStates>("/gazebo/model_states", 1, callbackStates);
 
   while(ros::ok())
   {
     //modelstate.pose.orientation.x  = 0;
     //modelstate.pose.orientation.y  = 0;
-    //modelstate.pose.orientation.z = rotation + 0.2;
-    //setmodelstate.request.model_state = modelstate;
+    modelstate.pose.orientation.z += 0.2;
+    setmodelstate.request.model_state = modelstate;
     //client.call(setmodelstate);
 
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
