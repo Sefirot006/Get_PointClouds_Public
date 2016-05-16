@@ -276,30 +276,34 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   //Filtrado de la nube actual.                           -> cloud_filtered
   //filter_cloud(cloud, cloud_filtered);
   *cloud_filtered = *cloud;
-  cout << "Puntos tras VG: " << cloud_filtered->size() << endl;
-  //Eliminado de los NaN de la nube filtrada actual.      -> cloud_filtered
-  removeNaNFromPointCloud<PointXYZRGB>(*cloud_filtered, *cloud_filtered, indices);
-  cout << "Quitamos los NAN y quedan: " << cloud_filtered->size() << endl;
+  //cout << "Puntos tras VG: " << cloud_filtered->size() << endl;
+  //Eliminado de los NaN de la nube filtrada actual.      -> cloud
+  removeNaNFromPointCloud<PointXYZRGB>(*cloud, *cloud, indices);
+  cout << "Quitamos los NAN y quedan: " << cloud->size() << endl;
   //Detección de características                          -> pcKeyPoints_XYZ
-  HARRISdetect_keypoints(cloud_filtered, *pcKeyPoints_XYZ);
+  HARRISdetect_keypoints(cloud, *pcKeyPoints_XYZ);
   //Si detectamos un número de caracteristicas suficientes...
   if(pcKeyPoints_XYZ->size() > 10){
     cout << "Paso por el if" << endl;
     //Cálculo de normales a la superficie.                -> normals
     //compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
-    compute_surface_normals(cloud_filtered, normal_radius, normals);
+    compute_surface_normals(cloud, normal_radius, normals);
     //Extracción de características.                      -> cloudDescriptors
-    PFHRGB(cloud_filtered, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
-    std::cout << "Nº of PFH points in the descriptors_cloud_filtered are " << cloudDescriptors->points.size() << std::endl;
+    PFHRGB(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+    std::cout << "Nº of PFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
   }
 
   //Si es la primera nube...
   if(empieza==true){
     cout << "Es primera nube." << endl;
-    copyPointCloud(*cloud_filtered, *cloud_ant);
-    filter_cloud(cloud, cloud_filtered);
-    copyPointCloud(*cloud_filtered, *mapa);
+    copyPointCloud(*cloud, *cloud_ant);
+    //filter_cloud(cloud, cloud_filtered);
+    //copyPointCloud(*cloud_filtered, *mapa);
+
+    //Con la nube filtrada inicial se inicializa el mapa.
+    filter_cloud(cloud, mapa);
     empieza = false;
+
     // Almacenando la nube en disco
     //pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud);
     //cout << "Saved " << cloud->points.size () << " data points to test_pcd.pcd." << std::endl;
@@ -352,50 +356,22 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
       transformPointCloud(*cloud_filtered, *transformed_cloud, transform_res_from_SAC);
-
       cout << "Después de la transformación (RANSAC)." << endl;
-
-      /*
-      // nuevo ICP
-      IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
-      icp.setInputSource(cloud);
-      icp.setInputTarget(cloud_ant);
-
-      PointCloud<PointXYZRGB> final;
-      icp.align(final);
-      std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
-      std::cout << icp.getFinalTransformation() << std::endl;
-      Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
-
-
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
-      // transformpointcloud
-      transformPointCloud(*cloud,*transformed_cloud_2,matrix_icp);
-
-      cout << "Despues de la transformacion" << endl;
-      */
 
       //Recogemos la nube transformada desde RANSAC.
       // nuevo ICP
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
-      //icp.setInputSource(cloud_filtered);
-      //icp.setInputSource(transformed_cloud);
-      //icp.setInputTarget(cloud_ant);
       icp.setInputSource(pcKeyPoints_XYZ);
       icp.setInputTarget(pcKeyPoints_antXYZ);
-      //icp.setInputTarget(mapa);
 
       PointCloud<PointXYZRGB> final;
       icp.align(final);
       std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
-      std::cout << icp.getFinalTransformation() << std::endl;
       Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
+      std::cout << matrix_icp << std::endl;
 
-      //pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
       // transformpointcloud
       transformPointCloud(*transformed_cloud, *transformed_cloud, matrix_icp);
-      //cout << "Matriz de transformación por ICP: " << endl;
-      //cout << matrix_icp << endl;
 
       cout << "Después de la transformación (ICP)." << endl;
 
@@ -404,6 +380,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //////////////////////////////////////////////////
       *cloud_ant = *transformed_cloud;
       filter_cloud(transformed_cloud, transformed_cloud);
+      //TODO REVISAR ESTO...
+      //swap(cloud_ant,cloud);
       *mapa += *transformed_cloud;
 
       //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_map (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -411,11 +389,6 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //vGrid.filter (*cloud_filtered_map);
       //cout << "Puntos del mapa antes del filtrado y de la visualización: " << mapa->points.size() << endl;
       //cout << "Puntos tras VG_mapa antes de la visualización: " << cloud_filtered_map->size() << endl;
-
-  //TODO REVISAR ESTO...
-      //ANTES:
-      //swap(cloud_ant,cloud);
-      //AHORA:
     }
   }
   //Volcado de actual a anterior.
@@ -427,7 +400,6 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
 
 // Estas dos funciones son para el codigo de prueba con las dos nubes
-
 void simpleVisPrueba(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1){
     //pcl::visualization::CloudViewer viewer ("Cloud Viewer");
     pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
