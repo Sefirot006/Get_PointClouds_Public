@@ -11,10 +11,10 @@
 #include <pcl/common/io.h>
 #include <pcl/features/fpfh.h>
 #include <pcl/features/fpfh_omp.h>
-#include <pcl/features/normal_3d.h>
 #include <pcl/features/pfh.h>
 #include <pcl/features/pfhrgb.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/keypoints/sift_keypoint.h>
 #include <pcl/point_types.h>
@@ -199,6 +199,34 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   cout << "Saliendo del pfh" << endl;
 }
 
+void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
+          float feature_radius, PointCloud<FPFHSignature33> &descriptors_out)
+{
+  FPFHEstimation<PointXYZRGB, Normal, FPFHSignature33> fpfh;
+  fpfh.setInputCloud (points);
+  fpfh.setInputNormals (normals);
+
+  search::KdTree<PointXYZRGB>::Ptr tree (new search::KdTree<PointXYZRGB>);
+  fpfh.setSearchMethod (tree);
+
+  PointCloud<FPFHSignature33>::Ptr fpfhs (new PointCloud<FPFHSignature33> ());
+
+  // Use all neighbors in a sphere of radius 5cm
+  // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
+  fpfh.setRadiusSearch (0.05);
+
+  cout << "A punto de computar" << endl;
+  // Compute the features
+  fpfh.compute (*fpfhs);
+
+
+  copyPointCloud(*fpfhs,descriptors_out);
+
+  cout << "Saliendo del pfh" << endl;
+  // fpfhs->points.size () should have the same size as the input cloud->points.size ()*
+
+}
+
 
 void compute_surface_normals(PointCloud<PointXYZRGB>::Ptr &points, float normal_radius, PointCloud<Normal>::Ptr &normals_out){
   NormalEstimation<PointXYZRGB,Normal> norm_est;
@@ -221,7 +249,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   // Declaraciones
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_filtered   (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      pcKeyPoints_XYZ  (new pcl::PointCloud<pcl::PointXYZRGB>);
-  pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
+  //pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
+  pcl::PointCloud<pcl::FPFHSignature33>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::FPFHSignature33>);
   //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints      (new pcl::PointCloud<pcl::PointWithScale>);
   pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
   std::vector<int> indices;
@@ -275,9 +304,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   cout << "Puntos capturados: " << cloud->size() << endl;
   //Filtrado de la nube actual.                           -> cloud_filtered
   //filter_cloud(cloud, cloud_filtered);
-  *cloud_filtered = *cloud;
-  //cout << "Puntos tras VG: " << cloud_filtered->size() << endl;
-  //Eliminado de los NaN de la nube filtrada actual.      -> cloud
+  //*cloud_filtered = *cloud;
+  //Eliminado de los NaN de la nube actual.      -> cloud
   removeNaNFromPointCloud<PointXYZRGB>(*cloud, *cloud, indices);
   cout << "Quitamos los NAN y quedan: " << cloud->size() << endl;
   //Detección de características                          -> pcKeyPoints_XYZ
@@ -288,9 +316,12 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     //Cálculo de normales a la superficie.                -> normals
     //compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
     compute_surface_normals(cloud, normal_radius, normals);
+
     //Extracción de características.                      -> cloudDescriptors
-    PFHRGB(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
-    std::cout << "Nº of PFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
+    //PFHRGB(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+    //std::cout << "Nº of PFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
+    FPFH(cloud, normals, feature_radius, *cloudDescriptors);
+    std::cout << "Nº of FPFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
   }
 
   //Si es la primera nube...
@@ -315,13 +346,15 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
     //Si se detectó un número de caracteristicas suficientes...
     if(pcKeyPoints_antXYZ->size() > 10){
-      std::cout << "Nº of PFH points in the descriptors_cloud_filtered_ant are " << cloudDescriptors_ant->points.size() << std::endl;
+      std::cout << "Nº of PFH points in the descriptors_cloud_ant are " << cloudDescriptors_ant->points.size() << std::endl;
+
 
       ///////////////////////////////////////////
       // CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////
       //Determinación de correspondencias por CorrespondenceRejactorSampleConsensus.     -> transform_res_from_SAC
-      registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
+      //registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
+      registration::CorrespondenceEstimation<FPFHSignature33,FPFHSignature33> corr_est;
       corr_est.setInputSource(cloudDescriptors);
       corr_est.setInputTarget(cloudDescriptors_ant);
 
@@ -338,7 +371,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       corr_rej_sac.setInputSource(pcKeyPoints_XYZ);
       corr_rej_sac.setInputTarget(pcKeyPoints_antXYZ);
       // ransac
-      corr_rej_sac.setInlierThreshold(0.1);
+      corr_rej_sac.setInlierThreshold(0.020);
       corr_rej_sac.setMaximumIterations(1000);
       corr_rej_sac.setInputCorrespondences(correspondences);
       corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
@@ -353,13 +386,33 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       // Fin del CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////////////
 
+      // Esta mierda tampoco funciona...
+      /*
+           // TransformationEstimationSVD
+      boost::shared_ptr<pcl::Correspondences> correspondences_2 (new pcl::Correspondences);
+      pcl::registration::CorrespondenceEstimation<PFHSignature125, PFHSignature125> corr_est;
+      corr_est.setInputSource (cloudDescriptors);
+      corr_est.setInputTarget (cloudDescriptors_ant);
+      corr_est.determineReciprocalCorrespondences (*correspondences_2);
+
+      Eigen::Matrix4f transform_res_from_SVD;
+      registration::TransformationEstimationSVD<PointXYZRGB, PointXYZRGB> trans_est_svd;
+      trans_est_svd.estimateRigidTransformation(*pcKeyPoints_XYZ, *pcKeyPoints_antXYZ,
+                                                *correspondences_2,
+                                                transform_res_from_SVD);
+
+      cout << "Despues de todo el lio nos quedamos con: " << correspondences_2->size() << " correspondencias" << endl;
+      cout << "transform from SAC: " << endl;
+      cout <<  transform_res_from_SVD  << endl;
+      */
+
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
-      transformPointCloud(*cloud_filtered, *transformed_cloud, transform_res_from_SAC);
+      transformPointCloud(*cloud, *transformed_cloud, transform_res_from_SAC);
       cout << "Después de la transformación (RANSAC)." << endl;
 
       //Recogemos la nube transformada desde RANSAC.
-      // nuevo ICP
+      //ICPPPPPPPPPPPPPPPP!!!
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
       icp.setInputSource(pcKeyPoints_XYZ);
       icp.setInputTarget(pcKeyPoints_antXYZ);
@@ -378,17 +431,12 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
       //////////////////////////////////////////////////
+
       *cloud_ant = *transformed_cloud;
       filter_cloud(transformed_cloud, transformed_cloud);
       //TODO REVISAR ESTO...
       //swap(cloud_ant,cloud);
       *mapa += *transformed_cloud;
-
-      //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_map (new pcl::PointCloud<pcl::PointXYZRGB>);
-      //vGrid.setInputCloud (mapa);
-      //vGrid.filter (*cloud_filtered_map);
-      //cout << "Puntos del mapa antes del filtrado y de la visualización: " << mapa->points.size() << endl;
-      //cout << "Puntos tras VG_mapa antes de la visualización: " << cloud_filtered_map->size() << endl;
     }
   }
   //Volcado de actual a anterior.
@@ -397,6 +445,13 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   //*normals_ant = *normals;
 
 }
+
+  //TODO
+  //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_map (new pcl::PointCloud<pcl::PointXYZRGB>);
+  //vGrid.setInputCloud (mapa);
+  //vGrid.filter (*cloud_map);
+  //cout << "Puntos del mapa antes del filtrado y de la visualización: " << mapa->points.size() << endl;
+  //cout << "Puntos tras VG_mapa antes de la visualización: " << cloud_map->size() << endl;
 
 
 // Estas dos funciones son para el codigo de prueba con las dos nubes
@@ -489,6 +544,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
     // Fin del CorrespondenceRejactorSampleConsensus //
     ///////////////////////////////////////////////////
 
+
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
     //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
     transformPointCloud(*cloud_filtered_1, *transformed_cloud, transform_res_from_SAC);
@@ -524,7 +580,6 @@ int main(int argc, char** argv)
   double rotation = 0.0;
 
   int i = 0;
-
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
@@ -611,7 +666,7 @@ int main(int argc, char** argv)
 
   // Probando con dos nubes solo
   // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
-/*
+  /*
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
 
@@ -633,7 +688,7 @@ int main(int argc, char** argv)
             << std::endl;
 
   unirPuntos(cloud_prueba_1,cloud_prueba_2);
+  */
 
-*/
   // Fin codigo de pureba de dos nubes
 }
