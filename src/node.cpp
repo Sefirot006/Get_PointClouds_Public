@@ -10,10 +10,10 @@
 #include <pcl/common/io.h>
 #include <pcl/features/fpfh.h>
 #include <pcl/features/fpfh_omp.h>
-#include <pcl/features/normal_3d.h>
 #include <pcl/features/pfh.h>
 #include <pcl/features/pfhrgb.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/keypoints/sift_keypoint.h>
 #include <pcl/point_types.h>
@@ -198,6 +198,34 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   cout << "Saliendo del pfh" << endl;
 }
 
+void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints,
+          float feature_radius, PointCloud<FPFHSignature33> &descriptors_out)
+{
+  FPFHEstimation<PointXYZRGB, Normal, FPFHSignature33> fpfh;
+  fpfh.setInputCloud (points);
+  fpfh.setInputNormals (normals);
+
+  search::KdTree<PointXYZ>::Ptr tree (new search::KdTree<PointXYZRGB>);
+  fpfh.setSearchMethod (tree);
+
+  PointCloud<FPFHSignature33>::Ptr fpfhs (new PointCloud<FPFHSignature33> ());
+
+  // Use all neighbors in a sphere of radius 5cm
+  // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
+  fpfh.setRadiusSearch (0.05);
+
+  cout << "A punto de computar" << endl;
+  // Compute the features
+  fpfh.compute (*fpfhs);
+
+
+  copyPointCloud(*fpfhs,descriptors_out);
+
+  cout << "Saliendo del pfh" << endl;
+  // fpfhs->points.size () should have the same size as the input cloud->points.size ()*
+
+}
+
 
 void compute_surface_normals(PointCloud<PointXYZRGB>::Ptr &points, float normal_radius, PointCloud<Normal>::Ptr &normals_out){
   NormalEstimation<PointXYZRGB,Normal> norm_est;
@@ -310,6 +338,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     if(pcKeyPoints_antXYZ->size() > 10){
       std::cout << "Nº of PFH points in the descriptors_cloud_filtered_ant are " << cloudDescriptors_ant->points.size() << std::endl;
 
+      
       ///////////////////////////////////////////
       // CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////
@@ -331,8 +360,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       corr_rej_sac.setInputSource(pcKeyPoints_XYZ);
       corr_rej_sac.setInputTarget(pcKeyPoints_antXYZ);
       // ransac
-      corr_rej_sac.setInlierThreshold(0.02);
-      corr_rej_sac.setMaximumIterations(1000);
+      corr_rej_sac.setInlierThreshold(0.020);
+      corr_rej_sac.setMaximumIterations(100);
       corr_rej_sac.setInputCorrespondences(correspondences);
       corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
 
@@ -346,6 +375,26 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       // Fin del CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////////////
 
+      // Esta mierda tampoco funciona...
+      /*
+           // TransformationEstimationSVD
+      boost::shared_ptr<pcl::Correspondences> correspondences_2 (new pcl::Correspondences);
+      pcl::registration::CorrespondenceEstimation<PFHSignature125, PFHSignature125> corr_est;
+      corr_est.setInputSource (cloudDescriptors);
+      corr_est.setInputTarget (cloudDescriptors_ant);
+      corr_est.determineReciprocalCorrespondences (*correspondences_2);
+
+      Eigen::Matrix4f transform_res_from_SVD;
+      registration::TransformationEstimationSVD<PointXYZRGB, PointXYZRGB> trans_est_svd;
+      trans_est_svd.estimateRigidTransformation(*pcKeyPoints_XYZ, *pcKeyPoints_antXYZ,
+                                                *correspondences_2,
+                                                transform_res_from_SVD);
+
+      cout << "Despues de todo el lio nos quedamos con: " << correspondences_2->size() << " correspondencias" << endl;
+      cout << "transform from SAC: " << endl;
+      cout <<  transform_res_from_SVD  << endl;
+      */
+
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
       transformPointCloud(*cloud_filtered, *transformed_cloud, transform_res_from_SAC);
@@ -355,7 +404,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       /*
       // nuevo ICP
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
-      icp.setInputSource(cloud);
+      icp.setInputSource(transformed_cloud);
       icp.setInputTarget(cloud_ant);
 
       PointCloud<PointXYZRGB> final;
@@ -365,23 +414,27 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
 
 
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB> ());
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud_2 (new pcl::PointCloud<pcl::PointXYZRGB> ());
       // transformpointcloud
       transformPointCloud(*cloud,*transformed_cloud_2,matrix_icp);
 
-      cout << "Despues de la transformacion" << endl;
+      cout << "Despues de la transformacion 2" << endl;
       */
 
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
       //////////////////////////////////////////////////
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud_filtered (new pcl::PointCloud<pcl::PointXYZRGB>);
+      filter_cloud(transformed_cloud,transformed_cloud_filtered);
+      cout << "Puntos del mapa antes del filtrado y de la visualización: " << transformed_cloud->points.size() << endl;
+      cout << "Puntos tras VG_mapa antes de la visualización: " << transformed_cloud_filtered->size() << endl;
+
       *mapa += *transformed_cloud;
 
-      //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_map (new pcl::PointCloud<pcl::PointXYZRGB>);
-      //vGrid.setInputCloud (mapa);
-      //vGrid.filter (*cloud_filtered_map);
-      //cout << "Puntos del mapa antes del filtrado y de la visualización: " << mapa->points.size() << endl;
-      //cout << "Puntos tras VG_mapa antes de la visualización: " << cloud_filtered_map->size() << endl;
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_map (new pcl::PointCloud<pcl::PointXYZRGB>);
+      filter_cloud(mapa,cloud_filtered_map);
+      cout << "Puntos del mapa antes del filtrado y de la visualización: " << mapa->points.size() << endl;
+      cout << "Puntos tras VG_mapa antes de la visualización: " << cloud_filtered_map->size() << endl;
 
   //TODO REVISAR ESTO...
       //ANTES:
@@ -489,6 +542,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
     // Fin del CorrespondenceRejactorSampleConsensus //
     ///////////////////////////////////////////////////
 
+
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
     //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
     transformPointCloud(*cloud_filtered_1, *transformed_cloud, transform_res_from_SAC);
@@ -515,7 +569,7 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
 
-  /*
+  
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
@@ -586,12 +640,12 @@ int main(int argc, char** argv)
 
 
   }
-  */
+  
   // Fin codigo ppal
 
   // Probando con dos nubes solo
   // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
-  
+  /**
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
 
@@ -613,7 +667,7 @@ int main(int argc, char** argv)
             << std::endl;
 
   unirPuntos(cloud_prueba_1,cloud_prueba_2);
-  
+  */
 
   // Fin codigo de pureba de dos nubes
 }
