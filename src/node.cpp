@@ -372,8 +372,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       corr_rej_sac.setInputSource(pcKeyPoints_XYZ);
       corr_rej_sac.setInputTarget(pcKeyPoints_antXYZ);
       // ransac
-      corr_rej_sac.setInlierThreshold(0.020);
-      corr_rej_sac.setMaximumIterations(1000);
+      corr_rej_sac.setInlierThreshold(0.1);
+      corr_rej_sac.setMaximumIterations(100);
       corr_rej_sac.setInputCorrespondences(correspondences);
       corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
 
