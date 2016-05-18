@@ -20,6 +20,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/keypoints/sift_keypoint.h>
+#include <pcl/registration/icp_nl.h>
 #include <pcl/point_types.h>
 #include <pcl/registration/correspondence_estimation.h>
 //#include <pcl/registration/correspondence_rejection.h>
@@ -677,11 +678,16 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       //Recogemos la nube transformada desde RANSAC.
       //Método ICP
-      IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
+      IterativeClosestPointNonLinear<PointXYZRGB, PointXYZRGB> icp;
       icp.setInputSource(pcKeyPoints_XYZ);
       icp.setInputTarget(pcKeyPoints_antXYZ);
-
-
+      icp.setMaximumIterations(1000);
+      /*
+      icp.setTransformationEpsilon(epsilon);
+      icp.setEuclideanFitnessEpsilon(distance);
+      icp.setMaxCorrespondenceDistance(distance);
+      icp.setRANSACOutlierRejectionThreshold(distance);
+*/
       //Parámetros a probar para mejorar los resultados en cuanto a tiempo y en cuanto a obtención de la distancia mínima global:
       /*
       int nr_iterations = 1000;
@@ -850,8 +856,7 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
   ros::NodeHandle nh;
-  //_nh = nh;
-  //ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
+  ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
   //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
