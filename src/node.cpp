@@ -8,13 +8,18 @@
 #include <gazebo_msgs/ModelStates.h>
 #include <geometry_msgs/Twist.h>
 #include <pcl-1.7/pcl/keypoints/harris_3d.h>
+#include <pcl-1.7/pcl/keypoints/narf_keypoint.h>
+#include <pcl-1.7/pcl/range_image/range_image.h>
+#include <pcl/features/range_image_border_extractor.h>
 #include <pcl/common/io.h>
 #include <pcl/features/fpfh.h>
 #include <pcl/features/fpfh_omp.h>
 #include <pcl/features/pfh.h>
 #include <pcl/features/pfhrgb.h>
-#include <pcl/filters/voxel_grid.h>
+#include <pcl/features/vfh.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/features/cvfh.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/keypoints/sift_keypoint.h>
 #include <pcl/point_types.h>
@@ -27,6 +32,7 @@
 #include <pcl/registration/correspondence_rejection_surface_normal.h>
 #include <pcl/registration/correspondence_rejection_trimmed.h>
 #include <pcl/registration/correspondence_rejection_var_trimmed.h>
+#include <pcl/registration/ia_ransac.h>
 #include <pcl/registration/icp.h>
 //#include <pcl/registration/transformation_estimation_lm.h>
 //#include <pcl/registration/transformation_estimation_svd.h>
@@ -34,6 +40,8 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_ros/point_cloud.h>
 #include <ros/ros.h>
+
+#include <time.h> 
 
 const float normal_radius = 0.05f;
 const float feature_radius = 0.05f;
@@ -46,6 +54,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcKeyPoints_antXYZ (new pcl::PointCloud<p
 //pcl::PointCloud<pcl::Normal>::Ptr normals_ant (new pcl::PointCloud<pcl::Normal>);
 //pcl::PointCloud<pcl::PFHSignature125>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::PFHSignature125>);
 pcl::PointCloud<pcl::FPFHSignature33>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::FPFHSignature33>);
+//pcl::PointCloud<pcl::VFHSignature308>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::VFHSignature308>);
 
 using namespace pcl;
 
@@ -79,8 +88,62 @@ void SIFTdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &points, PointC
   copyPointCloud(*keypoints_ptr,keypoints);
 }
 
+void
+narf_keypoints_detect(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud,
+                      pcl::PointCloud<pcl::PointXYZRGB>::Ptr &result)
+{
+  clock_t start, end; 
+  start = clock();
+  pcl::RangeImage range;
+
+  //Header-information for Range Image
+  float angularResolution = (float) (  0.2f * (M_PI/180.0f));  //   0.5 degree in radians
+  float maxAngleWidth     = (float) (360.0f * (M_PI/180.0f));  //   360.0 degree in radians
+  float maxAngleHeight    = (float) (180.0f * (M_PI/180.0f));  //   180.0 degree in radians
+  Eigen::Affine3f sensorPose = (Eigen::Affine3f)Eigen::Translation3f(0.0f, 0.0f, 0.0f);
+  pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::CAMERA_FRAME;
+  float noiseLevel = 0.00;
+  float minRange = 0.0f;
+  int borderSize = 1;
+
+  range.createFromPointCloud (*cloud, angularResolution, maxAngleWidth, maxAngleHeight, sensorPose, coordinate_frame, noiseLevel, minRange, borderSize);
+
+  //Extracting NARF-Keypoints
+  pcl::RangeImageBorderExtractor range_image_ba;
+  float support_size = 0.2f; //?
+
+  //Keypoints
+  pcl::NarfKeypoint narf_keypoint (&range_image_ba);
+  narf_keypoint.setRangeImage (&range);
+  narf_keypoint.getParameters ().support_size = support_size;
+  pcl::PointCloud<int> keypoints_ind;
+  narf_keypoint.compute (keypoints_ind);
+
+  result->width = keypoints_ind.points.size();
+  result->height = 1;
+  result->is_dense = false;
+  result->points.resize (result->width * result->height);
+
+  int ind_count=0;
+
+  //source XYZ-CLoud
+  for (size_t i = 0; i < keypoints_ind.points.size(); i++)
+  {
+    ind_count = keypoints_ind.points[i];
+    result->points[i].x = range.points[ind_count].x;
+    result->points[i].y = range.points[ind_count].y;
+    result->points[i].z = range.points[ind_count].z;
+  }
+
+  end = clock(); 
+
+  cout << "Saliendo del NARF en (" << (end-start)/(double)CLOCKS_PER_SEC << ")" << endl;
+}
+
 void HARRISdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB> &keypoints){
   cout << "Keypoints con HARRIS" << endl;
+  clock_t start, end; 
+  start = clock();
 
   PointCloud<PointXYZI>::Ptr result (new PointCloud<PointXYZI>);
   PointCloud<PointXYZI>::Ptr aux (new PointCloud<PointXYZI>);
@@ -102,6 +165,9 @@ void HARRISdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::P
   std::cout << "Nº of HARRIS points in the result are " << keypoints_ptr->points.size () << std::endl;
 
   copyPointCloud(*keypoints_ptr,keypoints);
+   end = clock(); 
+
+  cout << "Saliendo del HARRIS en (" << (end-start)/(double)CLOCKS_PER_SEC << ")" << endl;
 }
 
 void simpleVis(){
@@ -116,7 +182,8 @@ void simpleVis(){
 }
 
 void PFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointWithScale>::Ptr &keypoints,
-          float feature_radius, PointCloud<PFHSignature125> &descriptors_out){
+          float feature_radius, PointCloud<PFHSignature125> &descriptors_out)
+{
   cout << "Entro en pfh(PFH)" << endl;
   cout << "Dentro del pfh, keypoints: " << keypoints->points.size() << endl;
 
@@ -156,7 +223,10 @@ void PFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
 }
 
 void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints,
-          float feature_radius, PointCloud<PFHSignature125> &descriptors_out){
+          float feature_radius, PointCloud<PFHSignature125> &descriptors_out)
+{
+  clock_t start, end; 
+  start = clock();
   cout << "Entro en pfh(PFHRGB)" << endl;
   cout << "Dentro del pfh, keypoints: " << keypoints->points.size() << endl;
   cout << "Dentro del pfh, mapa: " << mapa->points.size() << endl;
@@ -197,14 +267,20 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   //std::cout << "No of PFH points in the descriptors are " << result_ptr->points.size () << std::endl;
   copyPointCloud(*result_ptr,descriptors_out);
 
-  cout << "Saliendo del pfh" << endl;
+  end = clock(); 
+
+  cout << "Saliendo del pfh en (" << (end-start)/(double)CLOCKS_PER_SEC << ")" << endl;
 }
 
-void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
+void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints, 
           float feature_radius, PointCloud<FPFHSignature33> &descriptors_out)
 {
+  clock_t start, end; 
+  start = clock();
+  cout << "Entro en fpfh" << endl;
   FPFHEstimation<PointXYZRGB, Normal, FPFHSignature33> fpfh;
-  fpfh.setInputCloud (points);
+  fpfh.setSearchSurface(points);
+  fpfh.setInputCloud (keypoints);
   fpfh.setInputNormals (normals);
 
   search::KdTree<PointXYZRGB>::Ptr tree (new search::KdTree<PointXYZRGB>);
@@ -220,12 +296,69 @@ void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
   // Compute the features
   fpfh.compute (*fpfhs);
 
-
   copyPointCloud(*fpfhs,descriptors_out);
 
-  cout << "Saliendo del pfh" << endl;
+  end = clock(); 
+
+  cout << "Saliendo del fpfh en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << fpfhs->points.size() << endl;
   // fpfhs->points.size () should have the same size as the input cloud->points.size ()*
 
+}
+
+void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
+          float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
+{
+  clock_t start, end; 
+  start = clock();
+  cout << "Entro en VFH" << endl;
+  pcl::VFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> vfh;
+  vfh.setInputCloud (points);
+  vfh.setInputNormals (normals);
+
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB> ());
+  vfh.setSearchMethod (tree);
+  vfh.setNormalizeBins(true);
+  vfh.setNormalizeDistance(false);
+
+  cout << "A punto de computar" << endl;
+  vfh.compute (descriptors_out);
+  cout << "Computado!" << endl;
+
+  end = clock(); 
+
+  cout << "Saliendo del VFH en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << descriptors_out.points.size() << endl;
+}
+
+void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
+          float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
+{
+  clock_t start, end; 
+  start = clock();
+  cout << "Entro en CVFH" << endl;
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+  pcl::CVFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> cvfh;
+  cvfh.setInputCloud(points);
+  cvfh.setInputNormals(normals);
+  cvfh.setSearchMethod(kdtree);
+
+  // Set the maximum allowable deviation of the normals,
+  // for the region segmentation step.
+  cvfh.setEPSAngleThreshold(5.0 / 180.0 * M_PI); // 5 degrees.
+  // Set the curvature threshold (maximum disparity between curvatures),
+  // for the region segmentation step.
+  cvfh.setCurvatureThreshold(1.0);
+  // Set to true to normalize the bins of the resulting histogram,
+  // using the total number of points. Note: enabling it will make CVFH
+  // invariant to scale just like VFH, but the authors encourage the opposite.
+  cvfh.setNormalizeBins(false);
+ 
+  cout << "A punto de computar" << endl;
+  cvfh.compute(descriptors_out);
+  cout << "Computado!" << endl;
+
+  end = clock(); 
+
+  cout << "Saliendo del VFH en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << descriptors_out.points.size() << endl;
 }
 
 
@@ -245,54 +378,17 @@ void filter_cloud(PointCloud<PointXYZRGB>::Ptr &cloud, PointCloud<PointXYZRGB>::
   cloud_filtered->is_dense = false;
 }
 
-
 void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   // Declaraciones
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_filtered   (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      pcKeyPoints_XYZ  (new pcl::PointCloud<pcl::PointXYZRGB>);
   //pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
   pcl::PointCloud<pcl::FPFHSignature33>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::FPFHSignature33>);
+  //pcl::PointCloud<pcl::VFHSignature308>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::VFHSignature308>);
   //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints      (new pcl::PointCloud<pcl::PointWithScale>);
   pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
   std::vector<int> indices;
   //pcl::VoxelGrid<pcl::PointXYZRGB > vGrid;
-
-  ///////////////////
-  //   Pendiente:  //
-  ///////////////////
-  //- Generar fichero de recorrido por las estancias, para ir leyendo las posiciones y rotaciones desde las que se irán obteniendo las nubes de puntos.
-  //- Volcado de mapa final a fichero para que los profesores puedan cargarlo con un programa externo que les proporcionaremos.
-
-  ///////////////
-  //   Notas:  //
-  ///////////////
-  //- Posiblemente tengamos que trabajar con nubes en crudo, y una vez se hayan obtenido las coincidencias entre ellas, almacenar la nube filtrada y transformada en el mapa.
-  //- Creo que sería conveniente realizar un "filtrado de puntos repetidos", desde la nube transformada a el mapa, para que este contenga el mínimo posible de puntos repetidos.
-
-  //////////////////////////////////////////////
-  //  Fases para la construcción de mapa 3D.  //
-  //////////////////////////////////////////////
-
-  //1. Extracción de características.
-  //Este paso nos devolverá un conjunto de características Ci, que será el resultado de aplicar
-  //un detector y un descriptor de características. Habrá que experimentar con las opciones
-  //disponibles para determinar cuál es el más adecuado (por tiempo de ejecución y eficacia).
-  //feature_detector(visu_pc, 0.005f, 6, 4, 0.005f);
-
-  //2. Encontrar emparejamientos.
-  //Usaremos el método que proporciona PCL para encontrar las correspondencias.
-  //El resultado de este paso es un conjunto de emparejamiento.
-
-  //3. Determinar la mejor transformación que explica los emparejamientos.
-  //Es posible que haya muchos malos emparejamientos, por ello en este paso
-  //tenemos que determinar la mejor transformación que explica los
-  //emparejamientos encontrados. Para ello, usaremos el algoritmo RANSAC.
-
-  //4. Aplicar filtro de reducción VoxelGrid + Construcción del mapa.
-  //Por último, hay que construir el mapa. Como cada toma de la Kinect tiene
-  //aproximadamente 300.000 puntos, en el momento que tengamos unas cuantas
-  //tomas vamos a manejar demasiados puntos, por lo que hay que proceder a reducirlos.
-  //Para ellos, podemos usar el filtro de reducción VoxelGrid, disponible en PCL.
 
 
   ////////////////////////////////////////////////
@@ -307,10 +403,12 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   //filter_cloud(cloud, cloud_filtered);
   //*cloud_filtered = *cloud;
   //Eliminado de los NaN de la nube actual.      -> cloud
-  removeNaNFromPointCloud<PointXYZRGB>(*cloud, *cloud, indices);
+  removeNaNFromPointCloud(*cloud, *cloud, indices);
   cout << "Quitamos los NAN y quedan: " << cloud->size() << endl;
+  //micro_filter_cloud(cloud, cloud);
   //Detección de características                          -> pcKeyPoints_XYZ
   HARRISdetect_keypoints(cloud, *pcKeyPoints_XYZ);
+  //narf_keypoints_detect(cloud, pcKeyPoints_XYZ);
   //Si detectamos un número de caracteristicas suficientes...
   if(pcKeyPoints_XYZ->size() > 10){
     cout << "Paso por el if" << endl;
@@ -321,7 +419,16 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     //Extracción de características.                      -> cloudDescriptors
     //PFHRGB(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
     //std::cout << "Nº of PFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
-    FPFH(cloud, normals, feature_radius, *cloudDescriptors);
+    cloudDescriptors->is_dense = false;
+    FPFH(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+
+    //indices.clear();
+    //cout << "Antes de los NAN y quedan: " << cloudDescriptors->size() << endl;
+    //removeNaNFromPointCloud(*cloudDescriptors, *cloudDescriptors, indices);
+    //cout << "Quitamos los NAN y quedan: " << cloudDescriptors->size() << endl;
+
+    //VFH(cloud, normals, feature_radius, *cloudDescriptors);
+    //CVFH(cloud, normals, feature_radius, *cloudDescriptors);
     std::cout << "Nº of FPFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
   }
 
@@ -349,15 +456,68 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     if(pcKeyPoints_antXYZ->size() > 10){
       std::cout << "Nº of PFH points in the descriptors_cloud_ant are " << cloudDescriptors_ant->points.size() << std::endl;
 
+      // Prueba de otra basura
+      /**
+      SampleConsensusInitialAlignment<PointXYZRGB, PointXYZRGB, FPFHSignature33> sac;
 
+      sac.setMinSampleDistance(0.01);
+      sac.setMaxCorrespondenceDistance(0.01);
+      sac.setMaximumIterations(1);
+      sac.setInputSource(cloud);
+      sac.setSourceFeatures(cloudDescriptors);
+
+      sac.setInputTarget(cloud_ant);
+      sac.setTargetFeatures (cloudDescriptors_ant);
+
+      PointCloud<PointXYZRGB>::Ptr aligned_source(new PointCloud<PointXYZRGB>);
+
+      cout << "Antes del alineo1" << endl;
+      sac.align(*aligned_source);
+      cout << "Despues del alineo1" << endl;
+
+      Eigen::Matrix4f initial_T = sac.getFinalTransformation();
+
+      cout << "despues del initial_T" << endl;
+
+  
+      IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
+      icp.setMaxCorrespondenceDistance (0.01);
+      icp.setRANSACOutlierRejectionThreshold (0.01);
+      icp.setTransformationEpsilon (0.1);
+      icp.setMaximumIterations (100);
+
+      icp.setInputSource(pcKeyPoints_XYZ);
+      icp.setInputTarget (pcKeyPoints_antXYZ);
+
+      PointCloud<PointXYZRGB>::Ptr registration_output(new PointCloud<PointXYZRGB>);
+      cout << "Antes del alineo2" << endl;
+      icp.align (*registration_output);
+      cout << "Despues del alineo2" << endl;
+
+      Eigen::Matrix4f refined_T = icp.getFinalTransformation()*initial_T;
+
+
+      std::cout << refined_T << std::endl;
+
+
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
+      // transformpointcloud
+      transformPointCloud(*transformed_cloud, *transformed_cloud, refined_T);
+
+      cout << "Después de la transformación (ICP)." << endl;
+      */
+      
       ///////////////////////////////////////////
       // CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////
+      
       //Determinación de correspondencias por CorrespondenceRejactorSampleConsensus.     -> transform_res_from_SAC
       //registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
       registration::CorrespondenceEstimation<FPFHSignature33,FPFHSignature33> corr_est;
+      //registration::CorrespondenceEstimation<VFHSignature308,VFHSignature308> corr_est;
       corr_est.setInputSource(cloudDescriptors);
       corr_est.setInputTarget(cloudDescriptors_ant);
+      //corr_est.setMaxCorrespondenceDistance(0.01);
 
       cout << "Antes de determinar las correspondencias." << endl;
 
@@ -372,17 +532,21 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       corr_rej_sac.setInputSource(pcKeyPoints_XYZ);
       corr_rej_sac.setInputTarget(pcKeyPoints_antXYZ);
       // ransac
-      corr_rej_sac.setInlierThreshold(0.1);
+      corr_rej_sac.setInlierThreshold(0.01);
       corr_rej_sac.setMaximumIterations(100);
+
       corr_rej_sac.setInputCorrespondences(correspondences);
+
+      cout << "Antes de obtener las correspondencias." << endl;
       corr_rej_sac.getCorrespondences(*correspondences_result_rej_sac);
+      cout << "Ya se han obtenido las correspondencias." << endl;
 
       Eigen::Matrix4f transform_res_from_SAC = corr_rej_sac.getBestTransformation();
 
       cout << "Después de todo el lío nos quedamos con: " << correspondences->size() << " ó: " << correspondences_result_rej_sac->size() << " correspondencias." << endl;
       cout << "Matriz de transformación por Sample Consensus: " << endl;
       cout << transform_res_from_SAC << endl;
-
+      
       ///////////////////////////////////////////////////
       // Fin del CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////////////
@@ -407,17 +571,30 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout <<  transform_res_from_SVD  << endl;
       */
 
+      
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
       transformPointCloud(*cloud, *transformed_cloud, transform_res_from_SAC);
       cout << "Después de la transformación (RANSAC)." << endl;
 
       //Recogemos la nube transformada desde RANSAC.
-      //ICPPPPPPPPPPPPPPPP!!!
+      //Método ICP
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
       icp.setInputSource(pcKeyPoints_XYZ);
       icp.setInputTarget(pcKeyPoints_antXYZ);
-
+      
+      //Parámetros a probar para mejorar los resultados en cuanto a tiempo y en cuanto a obtención de la distancia mínima global:
+      /*
+      int nr_iterations = 1000;
+      int epsilon ;
+      int distance ;
+      icp.setMaximumIterations(nr_iterations);
+      icp.setTransformationEpsilon(epsilon);
+      icp.setEuclideanFitnessEpsilon(distance);
+      icp.setMaxCorrespondenceDistance(distance);
+      icp.setRANSACOutlierRejectionThreshold(distance);
+      */
+      
       PointCloud<PointXYZRGB> final;
       icp.align(final);
       std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
@@ -428,16 +605,18 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       transformPointCloud(*transformed_cloud, *transformed_cloud, matrix_icp);
 
       cout << "Después de la transformación (ICP)." << endl;
-
+      
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
       //////////////////////////////////////////////////
 
       *cloud_ant = *transformed_cloud;
       filter_cloud(transformed_cloud, transformed_cloud);
+      std::cout << "Nº de puntos de la nube filtrada antes de añadir a mapa: " << transformed_cloud->points.size() << std::endl;
       //TODO REVISAR ESTO...
       //swap(cloud_ant,cloud);
       *mapa += *transformed_cloud;
+      std::cout << "Nº de puntos total en mapa: " << mapa->points.size() << std::endl;
     }
   }
   //Volcado de actual a anterior.
@@ -521,7 +700,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
     boost::shared_ptr<Correspondences> correspondences (new Correspondences);
     //corr_est.determineCorrespondences (*correspondences);
-    corr_est.determineReciprocalCorrespondences (*correspondences);
+    corr_est.determineCorrespondences (*correspondences);
 
     cout << "Ya se han determinado las correspondencias." << endl;
 
