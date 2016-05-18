@@ -1,3 +1,4 @@
+
 // NARF KeyPoints
 // http://pointclouds.org/documentation/tutorials/narf_keypoint_extraction.php#narf-keypoint-extraction
 // Importante
@@ -41,10 +42,13 @@
 #include <pcl_ros/point_cloud.h>
 #include <ros/ros.h>
 
-#include <time.h> 
+#include <time.h>
 
 const float normal_radius = 0.05f;
 const float feature_radius = 0.05f;
+
+//ros::NodeHandle nh;
+ros::ServiceClient client;
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -92,7 +96,7 @@ void
 narf_keypoints_detect(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud,
                       pcl::PointCloud<pcl::PointXYZRGB>::Ptr &result)
 {
-  clock_t start, end; 
+  clock_t start, end;
   start = clock();
   pcl::RangeImage range;
 
@@ -135,14 +139,14 @@ narf_keypoints_detect(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud,
     result->points[i].z = range.points[ind_count].z;
   }
 
-  end = clock(); 
+  end = clock();
 
   cout << "Saliendo del NARF en (" << (end-start)/(double)CLOCKS_PER_SEC << ")" << endl;
 }
 
 void HARRISdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGB> &keypoints){
   cout << "Keypoints con HARRIS" << endl;
-  clock_t start, end; 
+  clock_t start, end;
   start = clock();
 
   PointCloud<PointXYZI>::Ptr result (new PointCloud<PointXYZI>);
@@ -165,7 +169,7 @@ void HARRISdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, pcl::P
   std::cout << "Nº of HARRIS points in the result are " << keypoints_ptr->points.size () << std::endl;
 
   copyPointCloud(*keypoints_ptr,keypoints);
-   end = clock(); 
+   end = clock();
 
   cout << "Saliendo del HARRIS en (" << (end-start)/(double)CLOCKS_PER_SEC << ")" << endl;
 }
@@ -178,6 +182,7 @@ void simpleVis(){
 	     viewer.showCloud (mapa);
        //viewer_2.showCloud (cloud_2);
        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+
     }
 }
 
@@ -225,7 +230,7 @@ void PFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
 void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints,
           float feature_radius, PointCloud<PFHSignature125> &descriptors_out)
 {
-  clock_t start, end; 
+  clock_t start, end;
   start = clock();
   cout << "Entro en pfh(PFHRGB)" << endl;
   cout << "Dentro del pfh, keypoints: " << keypoints->points.size() << endl;
@@ -267,15 +272,15 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   //std::cout << "No of PFH points in the descriptors are " << result_ptr->points.size () << std::endl;
   copyPointCloud(*result_ptr,descriptors_out);
 
-  end = clock(); 
+  end = clock();
 
   cout << "Saliendo del pfh en (" << (end-start)/(double)CLOCKS_PER_SEC << ")" << endl;
 }
 
-void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints, 
+void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints,
           float feature_radius, PointCloud<FPFHSignature33> &descriptors_out)
 {
-  clock_t start, end; 
+  clock_t start, end;
   start = clock();
   cout << "Entro en fpfh" << endl;
   FPFHEstimation<PointXYZRGB, Normal, FPFHSignature33> fpfh;
@@ -298,7 +303,7 @@ void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
 
   copyPointCloud(*fpfhs,descriptors_out);
 
-  end = clock(); 
+  end = clock();
 
   cout << "Saliendo del fpfh en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << fpfhs->points.size() << endl;
   // fpfhs->points.size () should have the same size as the input cloud->points.size ()*
@@ -306,9 +311,8 @@ void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
 }
 
 void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
-          float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
-{
-  clock_t start, end; 
+          float feature_radius, PointCloud<VFHSignature308> &descriptors_out) {
+  clock_t start, end;
   start = clock();
   cout << "Entro en VFH" << endl;
   pcl::VFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> vfh;
@@ -324,15 +328,14 @@ void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
   vfh.compute (descriptors_out);
   cout << "Computado!" << endl;
 
-  end = clock(); 
+  end = clock();
 
   cout << "Saliendo del VFH en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << descriptors_out.points.size() << endl;
 }
 
 void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
-          float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
-{
-  clock_t start, end; 
+          float feature_radius, PointCloud<VFHSignature308> &descriptors_out) {
+  clock_t start, end;
   start = clock();
   cout << "Entro en CVFH" << endl;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZRGB>);
@@ -351,12 +354,12 @@ void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
   // using the total number of points. Note: enabling it will make CVFH
   // invariant to scale just like VFH, but the authors encourage the opposite.
   cvfh.setNormalizeBins(false);
- 
+
   cout << "A punto de computar" << endl;
   cvfh.compute(descriptors_out);
   cout << "Computado!" << endl;
 
-  end = clock(); 
+  end = clock();
 
   cout << "Saliendo del VFH en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << descriptors_out.points.size() << endl;
 }
@@ -390,18 +393,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   std::vector<int> indices;
   //pcl::VoxelGrid<pcl::PointXYZRGB > vGrid;
 
-
-  ////////////////////////////////////////////////
-  // De esta forma se repiten menos operaciones //
-  // por lo que si conseguimos que funcione,    //
-  // lo hará mucho más rápido y más ligero.     //
-  ////////////////////////////////////////////////
   //Lectura de la nube actual.                            -> cloud
   copyPointCloud(*msg, *cloud);
   cout << "Puntos capturados: " << cloud->size() << endl;
-  //Filtrado de la nube actual.                           -> cloud_filtered
-  //filter_cloud(cloud, cloud_filtered);
-  //*cloud_filtered = *cloud;
   //Eliminado de los NaN de la nube actual.      -> cloud
   removeNaNFromPointCloud(*cloud, *cloud, indices);
   cout << "Quitamos los NAN y quedan: " << cloud->size() << endl;
@@ -419,7 +413,6 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     //Extracción de características.                      -> cloudDescriptors
     //PFHRGB(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
     //std::cout << "Nº of PFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
-    cloudDescriptors->is_dense = false;
     FPFH(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
 
     //indices.clear();
@@ -479,7 +472,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       cout << "despues del initial_T" << endl;
 
-  
+
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
       icp.setMaxCorrespondenceDistance (0.01);
       icp.setRANSACOutlierRejectionThreshold (0.01);
@@ -506,11 +499,11 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
       cout << "Después de la transformación (ICP)." << endl;
       */
-      
+
       ///////////////////////////////////////////
       // CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////
-      
+
       //Determinación de correspondencias por CorrespondenceRejactorSampleConsensus.     -> transform_res_from_SAC
       //registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
       registration::CorrespondenceEstimation<FPFHSignature33,FPFHSignature33> corr_est;
@@ -522,8 +515,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout << "Antes de determinar las correspondencias." << endl;
 
       boost::shared_ptr<Correspondences> correspondences (new Correspondences);
-      //corr_est.determineCorrespondences (*correspondences);
-      corr_est.determineReciprocalCorrespondences (*correspondences);
+      corr_est.determineCorrespondences (*correspondences);
+      //corr_est.determineReciprocalCorrespondences (*correspondences);
 
       cout << "Ya se han determinado las correspondencias." << endl;
 
@@ -546,7 +539,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout << "Después de todo el lío nos quedamos con: " << correspondences->size() << " ó: " << correspondences_result_rej_sac->size() << " correspondencias." << endl;
       cout << "Matriz de transformación por Sample Consensus: " << endl;
       cout << transform_res_from_SAC << endl;
-      
+
       ///////////////////////////////////////////////////
       // Fin del CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////////////
@@ -571,7 +564,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout <<  transform_res_from_SVD  << endl;
       */
 
-      
+
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
       transformPointCloud(*cloud, *transformed_cloud, transform_res_from_SAC);
@@ -582,7 +575,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
       icp.setInputSource(pcKeyPoints_XYZ);
       icp.setInputTarget(pcKeyPoints_antXYZ);
-      
+
       //Parámetros a probar para mejorar los resultados en cuanto a tiempo y en cuanto a obtención de la distancia mínima global:
       /*
       int nr_iterations = 1000;
@@ -594,7 +587,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       icp.setMaxCorrespondenceDistance(distance);
       icp.setRANSACOutlierRejectionThreshold(distance);
       */
-      
+
       PointCloud<PointXYZRGB> final;
       icp.align(final);
       std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
@@ -605,7 +598,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       transformPointCloud(*transformed_cloud, *transformed_cloud, matrix_icp);
 
       cout << "Después de la transformación (ICP)." << endl;
-      
+
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
       //////////////////////////////////////////////////
@@ -643,6 +636,56 @@ void simpleVisPrueba(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1){
        viewer.showCloud (cloud_prueba_1);
        //viewer_2.showCloud (cloud_2);
        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+    }
+}
+
+// Estas dos funciones son para el codigo de prueba con las dos nubes
+void simpleMov(){
+    char cmd[50];
+    //ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
+    gazebo_msgs::SetModelState setmodelstate;
+    gazebo_msgs::ModelState modelstate;
+    while(ros::ok()){
+       boost::this_thread::sleep(boost::posix_time::milliseconds(3000));
+       modelstate.model_name = "mobile_base";
+       modelstate.reference_frame = "world";
+       modelstate.pose.position.x = 0;
+       modelstate.pose.position.y = 0;
+       modelstate.pose.orientation.z = 0;
+       setmodelstate.request.model_state = modelstate;
+       client.call(setmodelstate);
+
+       boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+       std::cin.getline(cmd, 50);
+
+       if(cmd[0]!='w' && cmd[0]!='a' && cmd[0]!='s' && cmd[0]!='d') {
+           std::cout << "Comando desconocido:" << cmd << "\n";
+           continue;
+       }
+       modelstate.pose.position.x = modelstate.pose.position.y = modelstate.pose.orientation.z = 0;
+       //move forward
+       if(cmd[0]=='w') {
+           modelstate.pose.position.x = 0.25;
+       }
+       //turn left (yaw) and drive forward at the same time
+       else if(cmd[0]=='a') {
+           //modelstate.angular.z = 0.75;
+           modelstate.pose.position.x = 0.25;
+       }
+       //turn right (yaw) and drive forward at the same time
+       else if(cmd[0]=='d') {
+           //modelstate.angular.z = -0.75;
+           modelstate.pose.position.x = 0.25;
+       }
+       //quit
+       else if(cmd[0]=='s') {
+         modelstate.pose.position.x = -0.25;
+       }
+       modelstate.model_name = "mobile_base";
+       modelstate.reference_frame = "world";
+       setmodelstate.request.model_state = modelstate;
+       client.call(setmodelstate);
+       std::cout << "Ciclo:" << cmd << "\n";
     }
 }
 
@@ -747,24 +790,34 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
 // Fin de las funciones para probar con dos nubes de puntos
 
-
-void callbackStates(const gazebo_msgs::ModelStates::ConstPtr& msg){
-
+/*
+void callbackStates(const gazebo_msgs::ModelStates& msg){
+  int i = -1;
+  while (i<1000) {
+    if(msg.name[++i] == "mobile_base") break;
+  }
+  //ros::geometry_msgs/Pose[i] pos = msg->pose;
+  gazebo_msgs::ModelState msgcopy = new gazebo_msgs::ModelState::Ptr();
+  msgcopy.model_name = "mobile_base";
+  msgcopy.pose.position.y = msg[i].pose.position.y;
+  msgcopy.pose.position.x = msg[i].pose.position.x;
+  msgcopy.pose.position.z = msg[i].pose.position.z;
+  //msgcopy.twist = *msg->twist[i];
+  msgcopy.reference_frame = "world";
 }
-
+*/
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
-
-  double rotation = 0.0;
-
-  int i = 0;
   ros::NodeHandle nh;
-  ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
+  //_nh = nh;
+  //ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
   //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
+  client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
+  boost::thread t2(simpleMov);
 
   //ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
   //gazebo_msgs::SetModelState setmodelstate;
@@ -774,26 +827,50 @@ int main(int argc, char** argv)
   ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
   gazebo_msgs::SetModelState setmodelstate;
   gazebo_msgs::ModelState modelstate;
-  modelstate.model_name = "mobile_base";
   //modelstate.twist.angular.z = 0.03;
   //modelstate.pose.orientation.z = 0;
   //setmodelstate.request.model_state = modelstate;
   //client.call(setmodelstate);
 
-  ros::Subscriber submodel = nh.subscribe<gazebo_msgs::ModelStates>("/gazebo/model_states", 1, callbackStates);
+  //ros::Subscriber submodel = nh.subscribe<gazebo_msgs::ModelStates>("/gazebo/model_states", 1, callbackStates);
+
+  modelstate.model_name = "mobile_base";
+  modelstate.reference_frame = "world";
+  modelstate.pose.position.x = 0;
+  modelstate.pose.orientation.z = 0;
+  setmodelstate.request.model_state = modelstate;
+  client.call(setmodelstate);
 
   while(ros::ok())
   {
+    //modelstate = submodel.getModelStates();
     //modelstate.pose.orientation.x  = 0;
     //modelstate.pose.orientation.y  = 0;
-    modelstate.pose.orientation.z += 0.2;
+
+
+    /*
+    modelstate.model_name = "mobile_base";
+    modelstate.reference_frame = "world";
+    modelstate.pose.position.x += 0.002;
+    modelstate.pose.orientation.z += 0.002;
     setmodelstate.request.model_state = modelstate;
-    //client.call(setmodelstate);
+    if (client.call(setmodelstate))
+    {
+      ROS_INFO("BRILLIANT!!!");
+      ROS_INFO("%f",modelstate.pose.position.x);
+    }
+    else
+    {
+      ROS_ERROR("Failed to call service ");
+      return 1;
+    }
+    */
+
 
     // Esto funciona pero habria que buscar la manera de hacerlo solo cuando queramos y no siempre
 	  //driveKeyboard(cmd_vel_pub_);
     ros::spinOnce();
-    cout << "__________________________________________________________\n";
+    //cout << "__________________________________________________________\n";
     //viewer->spinOnce(1);
 
 
