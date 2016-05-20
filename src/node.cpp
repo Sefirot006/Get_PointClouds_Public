@@ -4,8 +4,11 @@
 // http://www.jeffdelmerico.com/wp-content/uploads/2014/03/pcl_tutorial.pdf
 
 #include <string>
+#include <cstdio>
 #include <iostream>
 #include <boost/foreach.hpp>
+#include <gazebo_msgs/SetModelState.h>
+#include <gazebo_msgs/ModelStates.h>
 #include <pcl-1.7/pcl/keypoints/harris_3d.h>
 #include <pcl-1.7/pcl/keypoints/narf_keypoint.h>
 #include <pcl/keypoints/susan.h>
@@ -350,7 +353,7 @@ void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
 }
 
 void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
-          float feature_radius, PointCloud<VFHSignature308> &descriptors_out) 
+          float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
 {
   clock_t start, end;
   start = clock();
@@ -374,7 +377,7 @@ void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
 }
 
 void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
-          float feature_radius, PointCloud<VFHSignature308> &descriptors_out) 
+          float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
 {
   clock_t start, end;
   start = clock();
@@ -422,9 +425,20 @@ void filter_cloud(PointCloud<PointXYZRGB>::Ptr &cloud, PointCloud<PointXYZRGB>::
   cloud_filtered->is_dense = false;
 }
 
+void print4x4Matrix (const Eigen::Matrix4f & matrix)
+{
+  printf ("Rotation matrix :\n");
+  printf ("    | %6.3f %6.3f %6.3f | \n", matrix (0, 0), matrix (0, 1), matrix (0, 2));
+  printf ("R = | %6.3f %6.3f %6.3f | \n", matrix (1, 0), matrix (1, 1), matrix (1, 2));
+  printf ("    | %6.3f %6.3f %6.3f | \n", matrix (2, 0), matrix (2, 1), matrix (2, 2));
+  printf ("Translation vector :\n");
+  printf ("t = < %6.3f, %6.3f, %6.3f >\n\n", matrix (0, 3), matrix (1, 3), matrix (2, 3));
+}
+
 void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   // Declaraciones
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_filtered   (new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_icp        (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      pcKeyPoints_XYZ  (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcKeyPoints_XYZ->is_dense = false;
   //pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
@@ -432,17 +446,19 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   cloudDescriptors->is_dense = false;
   //pcl::PointCloud<pcl::VFHSignature308>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::VFHSignature308>);
   //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints      (new pcl::PointCloud<pcl::PointWithScale>);
-  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
+  pcl::PointCloud<pcl::Normal>::Ptr normals  (new pcl::PointCloud<pcl::Normal>);
+  pcl::PointCloud<pcl::Normal>::Ptr normals2 (new pcl::PointCloud<pcl::Normal>);
+  pcl::PointCloud<pcl::Normal>::Ptr normals3 (new pcl::PointCloud<pcl::Normal>);
   normals->is_dense = false;
-  std::vector<int> indices;
+  std::vector<int> indices, indices2, indices3;
   //pcl::VoxelGrid<pcl::PointXYZRGB > vGrid;
 
   //Lectura de la nube actual.                            -> cloud
   cloud_filtered->is_dense=false;
   copyPointCloud(*msg, *cloud_filtered);
   // Almacenando la nube en disco
-    pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud_filtered);
-    cout << "Saved " << cloud_filtered->points.size () << " data points to test_pcd.pcd." << std::endl;
+//TODO      pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud_filtered);
+//TODO      cout << "Saved " << cloud_filtered->points.size () << " data points to test_pcd.pcd." << std::endl;
 
   cout << "Puntos capturados: " << cloud_filtered->size() << endl;
   //Filtrado de la nube actual.                           -> cloud_filtered
@@ -453,7 +469,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   //cout << "Antes remove_cloud: " << cloud->points.size() << endl;
   //cout << "Antes remove_filtered: " << cloud_filtered->points.size() << endl;
   removeNaNFromPointCloud(*cloud_filtered, *cloud, indices);
-  pcl::io::savePCDFileASCII ("test_WithoutNaN.pcd", *cloud_filtered);
+
+//TODO      pcl::io::savePCDFileASCII ("test_WithoutNaN.pcd", *cloud_filtered);
+
   //cout << "copio: " << cloud->points.size() << endl;
   //pcl::io::savePCDFileASCII ("test_CloudFiltered_WithoutNaN.pcd", *cloud);
   //cout << "copio: " << cloud_filtered->points.size() << endl;
@@ -461,7 +479,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   //micro_filter_cloud(cloud, cloud);
   //Detección de características                          -> pcKeyPoints_XYZ
   //HARRISdetect_keypoints(cloud, *pcKeyPoints_XYZ);
-  std::vector<int> indices3;
+
   //narf_keypoints_detect(cloud, pcKeyPoints_XYZ);
   // Posiblemente ajustando parametros llegue a hacer algo decente
   SIFTdetect_keypoints(cloud, *pcKeyPoints_XYZ);
@@ -474,7 +492,6 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     //Cálculo de normales a la superficie.                -> normals
     //compute_surface_normals(pcKeyPoints_XYZ, normal_radius, normals);
     compute_surface_normals(cloud, normal_radius, normals);
-    std::vector<int> indices2;
     //removeNaNNormalsFromPointCloud(*normals, *normals, indices2);
     //pcl::io::savePCDFileASCII ("test_normals_WithoutNaN.pcd", *normals);
 
@@ -577,15 +594,15 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //registration::CorrespondenceEstimation<VFHSignature308,VFHSignature308> corr_est;
       corr_est.setInputSource(cloudDescriptors);
       corr_est.setInputTarget(cloudDescriptors_ant);
-      
+
       //search::KdTree<pcl::FPFHSignature33>::Ptr tree(new pcl::search::KdTree<pcl::FPFHSignature33> ());
       //corr_est.setSearchMethodTarget(tree);
       ///search::KdTree<pcl::FPFHSignature33>::Ptr tree2(new pcl::search::KdTree<pcl::FPFHSignature33> ());
       //corr_est.setSearchMethodSource(tree2);
-      
+
       //corr_est.setMaxCorrespondenceDistance(0.01);
 
-      
+
       cout << "Antes de determinar las correspondencias." << endl;
 
       boost::shared_ptr<Correspondences> correspondences (new Correspondences);
@@ -624,7 +641,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //Aplicar la transformación a la nube de puntos filtrada.         -> transformed_cloud
       transformPointCloud(*cloud, *transformed_cloud, transform_res_from_SAC);
       cout << "Después de la transformación (RANSAC)." << endl;
-      
+
       ///////////////////////////////////////////////////
       // Fin del CorrespondenceRejactorSampleConsensus //
       ///////////////////////////////////////////////////
@@ -649,28 +666,52 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout <<  transform_res_from_SVD  << endl;
       */
 
-      /*
-      cout << "Empieza ICP" << endl;
 
+
+      cout << "Empieza ICP" << endl;
+      *cloud_icp = *transformed_cloud;
+      filter_cloud(transformed_cloud, transformed_cloud);
+      SIFTdetect_keypoints(transformed_cloud, *pcKeyPoints_XYZ);
+      cout << "OJO keypoints2: " << pcKeyPoints_XYZ->points.size() << endl;
+      //compute_surface_normals(transformed_cloud, normal_radius, normals2);
+      //cout << "OJO normales2: " << normals->points.size() << endl;
+      //FPFH(transformed_cloud, normals2, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+      //cout << "OJO features2: " << cloudDescriptors->points.size() << endl;
       //Recogemos la nube transformada desde RANSAC.
       //Método ICP
 
       IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
-      icp.setInputSource(cloud);
-      icp.setInputTarget(cloud_ant);
-
+      icp.setInputSource(pcKeyPoints_XYZ);
+      icp.setInputTarget(pcKeyPoints_antXYZ);
+      icp.setTransformationEpsilon (1e-6);
+      // Set the maximum distance between two correspondences (src<->tgt) to 20cm
+      // Note: adjust this based on the size of your datasets
+      icp.setMaxCorrespondenceDistance (0.1);
+      icp.setMaximumIterations (10);
       PointCloud<PointXYZRGB> final;
 
       icp.align(final);
+      int i = 100;
+      float convergencia = icp.getFitnessScore();
+      do {
+          convergencia = icp.hasConverged();
+          std::cout << "Convergencia:" << icp.hasConverged() << " score· " << icp.getFitnessScore() << std::endl;
+          SIFTdetect_keypoints(transformed_cloud, *pcKeyPoints_XYZ);
+          Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
+          transformPointCloud(*cloud_icp, *transformed_cloud, matrix_icp);
+          icp.align(final);
+          --i;
+      } while ( !icp.hasConverged() && convergencia == icp.getFitnessScore() && i>0);
       std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
       Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
-      std::cout << matrix_icp << std::endl;
+      print4x4Matrix(matrix_icp);
+      std::cout << std::endl;
 
       // transformpointcloud
-      transformPointCloud(*transformed_cloud, *transformed_cloud, matrix_icp);
+      transformPointCloud(*cloud_icp, *transformed_cloud, matrix_icp);
 
       cout << "Después de la transformación (ICP)." << endl;
-      */
+
 
       //////////////////////////////////////////////////
       // Trabajar siempre sobre la nube transformada. //
@@ -679,13 +720,11 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       *cloud_ant = *transformed_cloud;
 
       SIFTdetect_keypoints(transformed_cloud, *pcKeyPoints_XYZ);
-      cout << "OJO keypoints: " << pcKeyPoints_XYZ->points.size() << endl;
-      compute_surface_normals(transformed_cloud, normal_radius, normals);
-      cout << "OJO normales: " << normals->points.size() << endl;
-      FPFH(transformed_cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
-      cout << "OJO features: " << cloudDescriptors->points.size() << endl;
-
-
+      cout << "OJO keypoints3: " << pcKeyPoints_XYZ->points.size() << endl;
+      compute_surface_normals(transformed_cloud, normal_radius, normals3);
+      cout << "OJO normales3: " << normals->points.size() << endl;
+      FPFH(transformed_cloud, normals3, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+      cout << "OJO features3: " << cloudDescriptors->points.size() << endl;
 
 
       filter_cloud(transformed_cloud, transformed_cloud);
@@ -749,9 +788,6 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
   std::vector<int> indices_4;
 
   pcl::PointCloud<pcl::Normal>::Ptr normals_4 (new pcl::PointCloud<pcl::Normal>);
-
-
-
 
   //filter_cloud(cloud_prueba_1, cloud_filtered_1);
   //filter_cloud(cloud_prueba_2, cloud_prueba_2);
@@ -831,7 +867,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
     filter_cloud(cloud_prueba_1,cloud_prueba_1);
     filter_cloud(transformed_cloud,transformed_cloud);
     *mapa = *cloud_prueba_1 + *transformed_cloud;
-    
+
 
     cout << "llamada a slimplevis";
     simpleVisPrueba(mapa);
@@ -881,7 +917,6 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
       filter_cloud(transformed_cloud2,transformed_cloud2);
       *mapa += *transformed_cloud2;
-      
 
       cout << "llamada a slimplevis2";
       simpleVisPrueba(mapa);
@@ -904,12 +939,23 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
   ros::NodeHandle nh;
-  
-  
+
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
   //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
   boost::thread t(simpleVis);
+
+  ros::ServiceClient client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
+  gazebo_msgs::SetModelState setmodelstate;
+  gazebo_msgs::ModelState modelstate;
+  modelstate.model_name = "mobile_base";
+  modelstate.reference_frame = "world";
+  modelstate.pose.position.x = -4.5;
+  modelstate.pose.position.y = -2.1;
+  modelstate.twist.angular.z = 0.008;
+  modelstate.pose.orientation.z = 1;
+  setmodelstate.request.model_state = modelstate;
+  client.call(setmodelstate);
 
 
   while(ros::ok())
@@ -919,12 +965,12 @@ int main(int argc, char** argv)
     ros::spinOnce();
     cout << "__________________________________________________________\n";
   }
-  
+
   // Fin codigo ppal
   /*
   // Probando con dos nubes solo
   // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
-  
+
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1 (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_2 (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_3 (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -938,7 +984,7 @@ int main(int argc, char** argv)
     PCL_ERROR ("Couldn't read file test_1.pcd or test_2.pcd or test_3.pcd or test_4.pcd \n");
     return (-1);
   }
-  
+
   unirPuntos(cloud_prueba_1,cloud_prueba_2,cloud_prueba_3,cloud_prueba_4);
   */
 
