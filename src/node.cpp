@@ -55,8 +55,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZR
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcKeyPoints_antXYZ (new pcl::PointCloud<pcl::PointXYZRGB>);
 //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints_ant (new pcl::PointCloud<pcl::PointWithScale>);
 //pcl::PointCloud<pcl::Normal>::Ptr normals_ant (new pcl::PointCloud<pcl::Normal>);
-//pcl::PointCloud<pcl::PFHSignature125>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::PFHSignature125>);
-pcl::PointCloud<pcl::FPFHSignature33>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::FPFHSignature33>);
+pcl::PointCloud<pcl::PFHSignature125>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::PFHSignature125>);
+//pcl::PointCloud<pcl::FPFHSignature33>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::FPFHSignature33>);
 //pcl::PointCloud<pcl::VFHSignature308>::Ptr cloudDescriptors_ant (new pcl::PointCloud<pcl::VFHSignature308>);
 
 using namespace pcl;
@@ -85,7 +85,7 @@ void SIFTdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &points, PointC
   sift_detect.setScales(0.005, 6, 4);
   sift_detect.setMinimumContrast(0.005);
 
-  // Salen nans de mierda
+  // Salen nans
   sift_detect.setScales(0.025, 4, 5);
   sift_detect.setMinimumContrast(1);
   sift_detect.setMinimumContrast(0.01);
@@ -99,11 +99,21 @@ void SIFTdetect_keypoints(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &points, PointC
   sift_detect.setMinimumContrast(0.1);
   sift_detect.setScales(0.1, 2, 3);
   sift_detect.setMinimumContrast(0.0);
+
+  // buenos resultados
+  sift_detect.setScales(0.01, 2, 3);
+  sift_detect.setMinimumContrast(1);
+  sift_detect.setRadiusSearch(0.04);
+
+  // Los mejores parametros
+  sift_detect.setScales(0.01, 2, 3);
+  sift_detect.setMinimumContrast(0.5);
+  sift_detect.setRadiusSearch(0.04);
   */
 
   // Esto hay que afinarlo porque se sigue desplazando y saca mucho ruido(saca pocos kp/ probar con el primero de los comentados arriba)
   sift_detect.setScales(0.01, 2, 3);
-  sift_detect.setMinimumContrast(1);
+  sift_detect.setMinimumContrast(0.5);
   sift_detect.setRadiusSearch(0.04);
   // Set the input
   sift_detect.setInputCloud(points);
@@ -268,10 +278,10 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
 {
   clock_t start, end;
   start = clock();
-  cout << "Entro en pfh(PFHRGB)" << endl;
-  cout << "Dentro del pfh, keypoints: " << keypoints->points.size() << endl;
-  cout << "Dentro del pfh, mapa: " << mapa->points.size() << endl;
-  cout << "Dentro del pfh, normals: " << normals->points.size() << endl;
+  cout << "Entro en pfh" << endl;
+  //cout << "Dentro del pfh, keypoints: " << keypoints->points.size() << endl;
+  //cout << "Dentro del pfh, mapa: " << mapa->points.size() << endl;
+  //cout << "Dentro del pfh, normals: " << normals->points.size() << endl;
 
   PointCloud<PFHSignature125>::Ptr result(new PointCloud<PFHSignature125>);
   PointCloud<PFHSignature125>::Ptr prueba(new PointCloud<PFHSignature125>);
@@ -281,11 +291,12 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   pfh_est.setSearchMethod(search::KdTree<PointXYZRGB>::Ptr (new search::KdTree<PointXYZRGB>));
 
   //Especifica el radio de la caracteristica pfh
-  pfh_est.setRadiusSearch(feature_radius);
+  // con 0.1... 
+  pfh_est.setRadiusSearch(0.1);
 
   PointCloud<pcl::PointXYZRGB>::Ptr keypoints_xyzrgb (new PointCloud<PointXYZRGB>);
   copyPointCloud(*keypoints, *keypoints_xyzrgb);
-  cout << "Dentro del pfh, keypointsCopiados: " << keypoints_xyzrgb->size() << endl;
+  //cout << "Dentro del pfh, keypointsCopiados: " << keypoints_xyzrgb->size() << endl;
 
   // Usar todos los puntos para aalizar la estructura local de la nube
   pfh_est.setSearchSurface(points);
@@ -298,7 +309,7 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
   // Computa las caracteristicas
   pfh_est.compute(*result);
 
-  cout << "Computo" << endl;
+  cout << "Computado" << endl;
 
   prueba = result;
 
@@ -427,8 +438,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_filtered   (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr      pcKeyPoints_XYZ  (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcKeyPoints_XYZ->is_dense = false;
-  //pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
-  pcl::PointCloud<pcl::FPFHSignature33>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::FPFHSignature33>);
+  pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
+  //pcl::PointCloud<pcl::FPFHSignature33>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::FPFHSignature33>);
   cloudDescriptors->is_dense = false;
   //pcl::PointCloud<pcl::VFHSignature308>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::VFHSignature308>);
   //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints      (new pcl::PointCloud<pcl::PointWithScale>);
@@ -441,8 +452,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   cloud_filtered->is_dense=false;
   copyPointCloud(*msg, *cloud_filtered);
   // Almacenando la nube en disco
-    pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud_filtered);
-    cout << "Saved " << cloud_filtered->points.size () << " data points to test_pcd.pcd." << std::endl;
+    //pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud_filtered);
+    //cout << "Saved " << cloud_filtered->points.size () << " data points to test_pcd.pcd." << std::endl;
 
   cout << "Puntos capturados: " << cloud_filtered->size() << endl;
   //Filtrado de la nube actual.                           -> cloud_filtered
@@ -479,9 +490,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     //pcl::io::savePCDFileASCII ("test_normals_WithoutNaN.pcd", *normals);
 
     //Extracción de características.                      -> cloudDescriptors
-    //PFHRGB(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+    PFHRGB(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
     //std::cout << "Nº of PFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
-    FPFH(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+    //FPFH(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
 
     //indices.clear();
     //cout << "Antes de los NAN y quedan: " << cloudDescriptors->size() << endl;
@@ -572,8 +583,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       ///////////////////////////////////////////
 
       //Determinación de correspondencias por CorrespondenceRejactorSampleConsensus.     -> transform_res_from_SAC
-      //registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
-      registration::CorrespondenceEstimation<FPFHSignature33,FPFHSignature33> corr_est;
+      registration::CorrespondenceEstimation<PFHSignature125,PFHSignature125> corr_est;
+      //registration::CorrespondenceEstimation<FPFHSignature33,FPFHSignature33> corr_est;
       //registration::CorrespondenceEstimation<VFHSignature308,VFHSignature308> corr_est;
       corr_est.setInputSource(cloudDescriptors);
       corr_est.setInputTarget(cloudDescriptors_ant);
@@ -682,7 +693,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout << "OJO keypoints: " << pcKeyPoints_XYZ->points.size() << endl;
       compute_surface_normals(transformed_cloud, normal_radius, normals);
       cout << "OJO normales: " << normals->points.size() << endl;
-      FPFH(transformed_cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+
+      //FPFH(transformed_cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+      PFHRGB(transformed_cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
       cout << "OJO features: " << cloudDescriptors->points.size() << endl;
 
 
@@ -695,6 +708,9 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       std::cout << "Nº de puntos total en mapa antes de añadir transformed_cloud: " << mapa->points.size() << std::endl;
       *mapa += *transformed_cloud;
       std::cout << "Nº de puntos total en mapa: " << mapa->points.size() << std::endl;
+
+      pcl::io::savePCDFileASCII ("mapa_pcd.pcd", *mapa);
+      cout << "Saved " << mapa->points.size () << " data points to mapa_pcd.pcd." << std::endl;
     }
   }
   //Volcado de actual a anterior.
