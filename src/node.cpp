@@ -680,28 +680,35 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       //Recogemos la nube transformada desde RANSAC.
       //Método ICP
 
-      IterativeClosestPoint<PointXYZRGB, PointXYZRGB> icp;
+      IterativeClosestPointNonLinear<PointXYZRGB, PointXYZRGB> icp;
       icp.setInputSource(pcKeyPoints_XYZ);
       icp.setInputTarget(pcKeyPoints_antXYZ);
       icp.setTransformationEpsilon (1e-6);
       // Set the maximum distance between two correspondences (src<->tgt) to 20cm
       // Note: adjust this based on the size of your datasets
       icp.setMaxCorrespondenceDistance (0.1);
-      icp.setMaximumIterations (10);
+      icp.setMaximumIterations (100);
       PointCloud<PointXYZRGB> final;
 
       icp.align(final);
       int i = 100;
       float convergencia = icp.getFitnessScore();
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_icp_aux     (new pcl::PointCloud<pcl::PointXYZRGB>);
+      *cloud_icp_aux = *transformed_cloud;
       do {
-          convergencia = icp.hasConverged();
+          convergencia = icp.getFitnessScore();
           std::cout << "Convergencia:" << icp.hasConverged() << " score· " << icp.getFitnessScore() << std::endl;
           SIFTdetect_keypoints(transformed_cloud, *pcKeyPoints_XYZ);
           Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
           transformPointCloud(*cloud_icp, *transformed_cloud, matrix_icp);
           icp.align(final);
-          --i;
-      } while ( !icp.hasConverged() && convergencia == icp.getFitnessScore() && i>0);
+          if(convergencia > icp.getFitnessScore()) {
+            *cloud_icp_aux = *transformed_cloud;
+          } else {
+            *transformed_cloud = *cloud_icp_aux;
+            break;
+          }
+      } while (--i>0 && convergencia > 0.5);
       std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
       Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
       print4x4Matrix(matrix_icp);
