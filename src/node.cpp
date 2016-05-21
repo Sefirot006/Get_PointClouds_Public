@@ -679,8 +679,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 
 
       cout << "Empieza ICP" << endl;
-      *cloud_icp = *transformed_cloud;
-      filter_cloud(transformed_cloud, transformed_cloud);
+      //*cloud_icp = *transformed_cloud;
+      //filter_cloud(transformed_cloud, transformed_cloud);
       SIFTdetect_keypoints(transformed_cloud, *pcKeyPoints_XYZ);
       cout << "OJO keypoints2: " << pcKeyPoints_XYZ->points.size() << endl;
       //Recogemos la nube transformada desde RANSAC.
@@ -699,8 +699,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       icp.align(final);
       int i = 100;
       float convergencia = icp.getFitnessScore();
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr      cloud_icp_aux     (new pcl::PointCloud<pcl::PointXYZRGB>);
-      *cloud_icp_aux = *transformed_cloud;
+      *cloud_icp = *transformed_cloud;
       do {
           convergencia = icp.getFitnessScore();
           std::cout << "Convergencia:" << icp.hasConverged() << " score· " << icp.getFitnessScore() << std::endl;
@@ -709,12 +708,12 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
           transformPointCloud(*cloud_icp, *transformed_cloud, matrix_icp);
           icp.align(final);
           if(convergencia > icp.getFitnessScore()) {
-            *cloud_icp_aux = *transformed_cloud;
+            *cloud_icp = *transformed_cloud;
           } else {
-            *transformed_cloud = *cloud_icp_aux;
+            *transformed_cloud = *cloud_icp;
             break;
           }
-      } while (--i>0 && convergencia > 0.5);
+      } while (--i>0 && (convergencia > 0.5 || convergencia > (float)icp.getFitnessScore()));
       std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
       Eigen::Matrix4f matrix_icp = icp.getFinalTransformation();
       print4x4Matrix(matrix_icp);
