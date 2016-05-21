@@ -22,6 +22,7 @@
 //#include <pcl/features/vfh.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/features/cvfh.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/keypoints/sift_keypoint.h>
@@ -431,8 +432,14 @@ void compute_surface_normals(PointCloud<PointXYZRGB>::Ptr &points, float normal_
 }
 
 void filter_cloud(PointCloud<PointXYZRGB>::Ptr &cloud, PointCloud<PointXYZRGB>::Ptr &cloud_filtered){
+  pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
+  sor.setInputCloud (cloud);
+  sor.setMeanK (50);
+  sor.setStddevMulThresh (1.0);
+  sor.filter (*cloud_filtered);
+
   pcl::VoxelGrid<pcl::PointXYZRGB > vGrid;
-  vGrid.setInputCloud (cloud);
+  vGrid.setInputCloud (cloud_filtered);
   vGrid.setLeafSize (0.02f, 0.02f, 0.02f);
   vGrid.filter (*cloud_filtered);
   cloud_filtered->is_dense = false;
@@ -974,6 +981,12 @@ int main(int argc, char** argv)
   modelstate.pose.position.y = -2.1;
   modelstate.twist.angular.z = 0.002;
   modelstate.pose.orientation.z = 1;
+  setmodelstate.request.model_state = modelstate;
+  client.call(setmodelstate);
+  modelstate.model_name = "sofa_x2_salon";
+  modelstate.reference_frame = "world";
+  modelstate.pose.position.x = -6;
+  modelstate.pose.position.y = -3;
   setmodelstate.request.model_state = modelstate;
   client.call(setmodelstate);
 
