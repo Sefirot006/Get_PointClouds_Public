@@ -292,6 +292,7 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
 
   //Especifica el radio de la caracteristica pfh
   // con 0.1... 
+  // Con 0.12 tarda la vida
   pfh_est.setRadiusSearch(0.1);
 
   PointCloud<pcl::PointXYZRGB>::Ptr keypoints_xyzrgb (new PointCloud<PointXYZRGB>);
@@ -615,7 +616,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       // Mas alto peor?
       //0.2 petacion!!
       // 0.01 devuelve siempre matriz de identidad
-      // 0.1 medio funsiona
+      // 0.1 funsiona
       corr_rej_sac.setInlierThreshold(0.1);
       corr_rej_sac.setMaximumIterations(1000);
 
@@ -721,7 +722,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 }
 
 // Estas dos funciones son para el codigo de prueba con las dos nubes
-void simpleVisPrueba(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1){
+void simpleVisNube(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1){
     //pcl::visualization::CloudViewer viewer ("Cloud Viewer");
     pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
     //pcl::visualization::CloudViewer viewer_2 ("Cloud_2 Viewer");
@@ -850,7 +851,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
     
 
     cout << "llamada a slimplevis";
-    simpleVisPrueba(mapa);
+    simpleVisNube(mapa);
 
     cout << "a por la tercera nube" << endl;
 
@@ -900,7 +901,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
       
 
       cout << "llamada a slimplevis2";
-      simpleVisPrueba(mapa);
+      simpleVisNube(mapa);
 
     }
     else
@@ -915,13 +916,26 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
 // Fin de las funciones para probar con dos nubes de puntos
 
+void abrirPCD(){
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+  if(pcl::io::loadPCDFile<pcl::PointXYZRGB> ("mapaFinal.pcd", *cloud) == -1){
+    PCL_ERROR ("Couldn't read file test_1.pcd or test_2.pcd or test_3.pcd or test_4.pcd \n");
+  }
+  else{
+    simpleVisNube(cloud);
+  }
+}
+
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
   ros::NodeHandle nh;
   
-  
+  // Para leer la nube de un PCD
+  abrirPCD();
+
+  /*
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
   //ros::Publisher cmd_vel_pub_ = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
@@ -935,7 +949,7 @@ int main(int argc, char** argv)
     ros::spinOnce();
     cout << "__________________________________________________________\n";
   }
-  
+  */
   // Fin codigo ppal
   /*
   // Probando con dos nubes solo
