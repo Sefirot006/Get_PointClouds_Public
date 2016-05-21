@@ -273,8 +273,8 @@ void simpleVis(){
     while(!viewer.wasStopped()){
        viewer.showCloud (mapa);
        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
-	     viewer.showCloud (mapa_filtrado);
-       boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+	     //viewer.showCloud (mapa_filtrado);
+       //boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
        //viewer_2.showCloud (cloud_2);
     }
 }
@@ -298,6 +298,7 @@ void PFHRGB(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &norma
 
   //Especifica el radio de la caracteristica pfh
   // con 0.1...
+  // Con 0.12 tarda la vida
   pfh_est.setRadiusSearch(0.1);
 
   PointCloud<pcl::PointXYZRGB>::Ptr keypoints_xyzrgb (new PointCloud<PointXYZRGB>);
@@ -366,15 +367,17 @@ void FPFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
 
 }
 
-void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
+void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints,
           float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
 {
   clock_t start, end;
   start = clock();
   cout << "Entro en VFH" << endl;
   pcl::VFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> vfh;
-  vfh.setInputCloud (points);
+  vfh.setSearchSurface (points);
   vfh.setInputNormals (normals);
+
+  vfh.setInputCloud(keypoints);
 
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB> ());
   vfh.setSearchMethod (tree);
@@ -390,7 +393,7 @@ void VFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
   cout << "Saliendo del VFH en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << descriptors_out.points.size() << endl;
 }
 
-void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals,
+void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals, PointCloud<PointXYZRGB>::Ptr &keypoints,
           float feature_radius, PointCloud<VFHSignature308> &descriptors_out)
 {
   clock_t start, end;
@@ -398,8 +401,9 @@ void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
   cout << "Entro en CVFH" << endl;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZRGB>);
   pcl::CVFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> cvfh;
-  cvfh.setInputCloud(points);
-  cvfh.setInputNormals(normals);
+  cvfh.setSearchSurface (points);
+  cvfh.setInputNormals (normals);
+  cvfh.setInputCloud(keypoints);
   cvfh.setSearchMethod(kdtree);
 
   // Set the maximum allowable deviation of the normals,
@@ -419,7 +423,7 @@ void CVFH(PointCloud<PointXYZRGB>::Ptr &points, PointCloud<Normal>::Ptr &normals
 
   end = clock();
 
-  cout << "Saliendo del VFH en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << descriptors_out.points.size() << endl;
+  cout << "Saliendo del CVFH en (" << (end-start)/(double)CLOCKS_PER_SEC << ") con: " << descriptors_out.points.size() << endl;
 }
 
 
@@ -432,17 +436,17 @@ void compute_surface_normals(PointCloud<PointXYZRGB>::Ptr &points, float normal_
 }
 
 void filter_cloud(PointCloud<PointXYZRGB>::Ptr &cloud, PointCloud<PointXYZRGB>::Ptr &cloud_filtered){
-  pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
-  sor.setInputCloud (cloud);
-  sor.setMeanK (50);
-  sor.setStddevMulThresh (1.0);
-  sor.filter (*cloud_filtered);
-
   pcl::VoxelGrid<pcl::PointXYZRGB > vGrid;
-  vGrid.setInputCloud (cloud_filtered);
+  vGrid.setInputCloud (cloud);
   vGrid.setLeafSize (0.02f, 0.02f, 0.02f);
   vGrid.filter (*cloud_filtered);
   cloud_filtered->is_dense = false;
+
+  pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
+  sor.setInputCloud (cloud_filtered);
+  sor.setMeanK (35);
+  sor.setStddevMulThresh (0.75);
+  sor.filter (*cloud_filtered);
 }
 
 void print4x4Matrix (const Eigen::Matrix4f & matrix)
@@ -463,9 +467,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
   pcKeyPoints_XYZ->is_dense = false;
   pcl::PointCloud<pcl::PFHSignature125>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::PFHSignature125>);
   //pcl::PointCloud<pcl::FPFHSignature33>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::FPFHSignature33>);
-  cloudDescriptors->is_dense = false;
   //pcl::PointCloud<pcl::VFHSignature308>::Ptr  cloudDescriptors (new pcl::PointCloud<pcl::VFHSignature308>);
-  //pcl::PointCloud<pcl::PointWithScale>::Ptr pcKeyPoints      (new pcl::PointCloud<pcl::PointWithScale>);
+  cloudDescriptors->is_dense = false;
   pcl::PointCloud<pcl::Normal>::Ptr normals  (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<pcl::Normal>::Ptr normals2 (new pcl::PointCloud<pcl::Normal>);
   normals->is_dense = false;
@@ -524,8 +527,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
     //removeNaNFromPointCloud(*cloudDescriptors, *cloudDescriptors, indices);
     //cout << "Quitamos los NAN y quedan: " << cloudDescriptors->size() << endl;
 
-    //VFH(cloud, normals, feature_radius, *cloudDescriptors);
-    //CVFH(cloud, normals, feature_radius, *cloudDescriptors);
+    //VFH(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+    //CVFH(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
     std::cout << "Nº of PFH points in the descriptors_cloud are " << cloudDescriptors->points.size() << std::endl;
   }
 
@@ -640,7 +643,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       // Mas alto peor?
       //0.2 petacion!!
       // 0.01 devuelve siempre matriz de identidad
-      // 0.1 medio funsiona
+      // 0.1 funsiona
       corr_rej_sac.setInlierThreshold(0.1);
       corr_rej_sac.setMaximumIterations(1000);
 
@@ -746,6 +749,8 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       cout << "OJO normales3: " << normals2->points.size() << endl;
       //FPFH(transformed_cloud, normals2, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
       PFHRGB(transformed_cloud, normals2, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+      //VFH(transformed_cloud, normals2, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
+      //CVFH(cloud, normals, pcKeyPoints_XYZ, feature_radius, *cloudDescriptors);
       cout << "OJO features3: " << cloudDescriptors->points.size() << endl;
 
 
@@ -771,7 +776,7 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
 }
 
 // Estas dos funciones son para el codigo de prueba con las dos nubes
-void simpleVisPrueba(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1){
+void simpleVisNube(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1){
     //pcl::visualization::CloudViewer viewer ("Cloud Viewer");
     pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
     //pcl::visualization::CloudViewer viewer_2 ("Cloud_2 Viewer");
@@ -897,7 +902,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
 
     cout << "llamada a slimplevis";
-    simpleVisPrueba(mapa);
+    simpleVisNube(mapa);
 
     cout << "a por la tercera nube" << endl;
 
@@ -946,7 +951,7 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
       *mapa += *transformed_cloud2;
 
       cout << "llamada a slimplevis2";
-      simpleVisPrueba(mapa);
+      simpleVisNube(mapa);
 
     }
     else
@@ -961,11 +966,24 @@ void unirPuntos(PointCloud<pcl::PointXYZRGB>::Ptr cloud_prueba_1, PointCloud<pcl
 
 // Fin de las funciones para probar con dos nubes de puntos
 
+void abrirPCD(){
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+  if(pcl::io::loadPCDFile<pcl::PointXYZRGB> ("mapaFinal.pcd", *cloud) == -1){
+    PCL_ERROR ("Couldn't read file test_1.pcd or test_2.pcd or test_3.pcd or test_4.pcd \n");
+  }
+  else{
+    simpleVisNube(cloud);
+  }
+}
+
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "sub_pcl");
   ros::NodeHandle nh;
+
+  // Para leer la nube de un PCD
+  //abrirPCD();
 
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
@@ -1000,6 +1018,7 @@ int main(int argc, char** argv)
   }
 
   // Fin codigo ppal
+
   /*
   // Probando con dos nubes solo
   // Para probar con las dos nubes, copiar lo que hay dentro de la carpeta nubes en la raiz del catkin_ws,comentar todo lo anterior y descomentar esta parte
