@@ -53,6 +53,7 @@ const float normal_radius = 0.05f;
 const float feature_radius = 0.05f;
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa (new pcl::PointCloud<pcl::PointXYZRGB>);
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa_filtrado (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ant (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcKeyPoints_antXYZ (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -269,10 +270,11 @@ void simpleVis(){
     pcl::visualization::CloudViewer viewer ("Cloud_1 Viewer");
     //pcl::visualization::CloudViewer viewer_2 ("Cloud_2 Viewer");
     while(!viewer.wasStopped()){
-	     viewer.showCloud (mapa);
-       //viewer_2.showCloud (cloud_2);
+       viewer.showCloud (mapa);
        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
-
+	     viewer.showCloud (mapa_filtrado);
+       boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+       //viewer_2.showCloud (cloud_2);
     }
 }
 
@@ -747,8 +749,10 @@ void callback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr& msg){
       std::cout << "Nº de puntos total en mapa antes de añadir transformed_cloud: " << mapa->points.size() << std::endl;
       *mapa += *transformed_cloud;
       std::cout << "Nº de puntos total en mapa: " << mapa->points.size() << std::endl;
+      filter_cloud(mapa, mapa_filtrado);
 
       pcl::io::savePCDFileASCII ("mapa_pcd.pcd", *mapa);
+      pcl::io::savePCDFileASCII ("filtered_map_pcd.pcd", *mapa_filtrado);
       cout << "Saved " << mapa->points.size () << " data points to mapa_pcd.pcd." << std::endl;
     }
   }
