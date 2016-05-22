@@ -976,14 +976,28 @@ void abrirPCD(){
   }
 }
 
+void abrirFiltrarYGuardarPCD(){
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa(new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr mapa_filtrado(new pcl::PointCloud<pcl::PointXYZRGB>);
+  if(pcl::io::loadPCDFile<pcl::PointXYZRGB> ("mapaFinal.pcd", *mapa) == -1){
+    PCL_ERROR ("Couldn't read file test_1.pcd or test_2.pcd or test_3.pcd or test_4.pcd \n");
+  }
+  else{
+    filter_cloud(mapa, mapa_filtrado);
+    simpleVisNube(mapa_filtrado);
+    simpleVisNube(mapa);
+  }
+  pcl::io::savePCDFileASCII ("mapaFinalFiltrado.pcd", *mapa_filtrado);
+}
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "sub_pcl");
-  ros::NodeHandle nh;
+  //ros::init(argc, argv, "sub_pcl");
+  //ros::NodeHandle nh;
 
   // Para leer la nube de un PCD
   //abrirPCD();
+  abrirFiltrarYGuardarPCD();
 
   ros::Subscriber sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGB> >("/camera/depth/points", 1, callback);
   // Descomentar para teleoperar
